@@ -307,7 +307,7 @@ App 支持三种地址来源：局域网地址、DDNS 域名、本机回环（�
 | `DOWNLINK_CODEC` | `opus` | 下行编码，可选 `opus` 或 `adpcm` |
 | `OPUS_BITRATE` | `32000` | Opus 码率；BLE 不稳时可降到 `24000` |
 | `OPUS_HEAD_START_MS` | `300` | 起播前背靠背推送的音频时长 |
-| `REPLY_MODE` | `hermes` | 设为 `echo` 时不接大模型，直接回放识别文本，用于链路测试 |
+| `REPLY_MODE` | `agent` | 设为 `echo` 时不接大模型，直接回放识别文本，用于链路测试 |
 | `VOICE_HISTORY` | `1` | 设为 `0` 关闭多轮上下文 |
 | `ASR_URL` | 本机 ASR 接口 | 云端 ASR 失败时的回退接口 |
 | `RELAY_PY` | 当前解释器 | 调用 ASR 子进程使用的 Python |

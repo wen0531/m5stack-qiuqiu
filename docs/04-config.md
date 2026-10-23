@@ -52,9 +52,9 @@
 | `RELAY_PLAIN_PORT` | 8444 | 明文 WS 端口（仅本机用） |
 | `DOWNLINK_CODEC` | `opus` | 下行编码：`opus` 或 `adpcm`（固件旧版本用 adpcm） |
 | `OPUS_BITRATE` | 24000 | Opus 码率；BLE 不稳时降为 `24000` |
-| `REPLY_MODE` | `hermes` | `echo` = 回声模式（不接大模型，测试链路用） |
+| `REPLY_MODE` | `agent` | `echo` = 回声模式（不接大模型，测试链路用） |
 | `RELAY_PY` | 当前解释器 | 调 ASR 子进程用的 Python |
-| `HERMES_ENV_FILE` | `~/.hermes/.env` | 从哪个文件读网关 key |
+| `api_key_env` / `env_file` | 见 agents.json | 每个后台自己声明 key 从哪来 |
 | `ASR_URL` | — | 自定义 ASR 服务地址 |
 
 ## 3. ASR 凭据
