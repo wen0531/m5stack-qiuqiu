@@ -197,7 +197,7 @@ async def send_downlink(ws, wav_path: Path):
 
     # Opus CBR 32 kbps, 60 ms frames (240 B payload -> 244 B packet)
     await ws.send_json({'type': 'codec', 'id': 2})
-    bitrate = int(os.environ.get('OPUS_BITRATE', '32000'))
+    bitrate = int(os.environ.get('OPUS_BITRATE', '24000'))
     enc = opus_codec.Encoder(fs=16000, channels=1, bitrate=bitrate, complexity=5, frame_ms=60)
     frame = enc.frame_size            # 960 samples at 16 kHz
     # push the first frames back-to-back so the watch has ~300 ms of slack,

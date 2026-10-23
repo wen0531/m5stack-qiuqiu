@@ -51,7 +51,7 @@
 | `RELAY_PORT` | 8443 | HTTPS/WSS 端口 |
 | `RELAY_PLAIN_PORT` | 8444 | 明文 WS 端口（仅本机用） |
 | `DOWNLINK_CODEC` | `opus` | 下行编码：`opus` 或 `adpcm`（固件旧版本用 adpcm） |
-| `OPUS_BITRATE` | 32000 | Opus 码率；BLE 不稳时降为 `24000` |
+| `OPUS_BITRATE` | 24000 | Opus 码率；BLE 不稳时降为 `24000` |
 | `REPLY_MODE` | `hermes` | `echo` = 回声模式（不接大模型，测试链路用） |
 | `RELAY_PY` | 当前解释器 | 调 ASR 子进程用的 Python |
 | `HERMES_ENV_FILE` | `~/.hermes/.env` | 从哪个文件读网关 key |
@@ -64,9 +64,9 @@
 ```bash
 mkdir -p ~/.config/qiuqiu
 cat > ~/.config/qiuqiu/volc_asr.env <<'EOF'
-VOLC_APP_ID=xxx
-VOLC_ACCESS_TOKEN=xxx
-VOLC_RESOURCE_ID=volc.seedasr.sauc.duration
+VOLCENGINE_ASR_APP_ID=xxx
+VOLCENGINE_ASR_ACCESS_TOKEN=xxx
+VOLCENGINE_ASR_RESOURCE_ID=volc.seedasr.sauc.duration
 EOF
 ```
 
