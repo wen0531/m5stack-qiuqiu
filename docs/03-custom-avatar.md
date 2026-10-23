@@ -2,7 +2,7 @@
 
 > 本项目的二次开发教程：把 466×466 AMOLED 手表变成任意 2D 角色的舞台。
 > 目标：5 分钟换色与手感；半小时改表情或眼型；半天换掉整个渲染器。
-> 代码基于仓库当前实现，host 预览与示例均在本机编译运行过；路径相对仓库根目录。
+> 代码基于仓库当前实现；host 预览与方块脸示例已在本机编译运行，设备数字取自真机日志。路径相对仓库根目录。
 
 ## 0. 四个文件，一张地图
 
@@ -36,7 +36,7 @@ screen_y = (design_y - 120) * k + h / 2
 
 具体收益：**无资源**（固件里没有角色图片，不占 LVGL 图片缓存、不用解码）；**任意分辨率**（同一份数据在 186 和 466 下形状一致）；**可参数化变形**（整颗球是一个半径函数，表情只是给低阶模态设目标值）；**省 flash**（48 MiB 的贴图连一个 OTA 槽都放不下）；**好调**（颜色、圆度、弹性、表情全是运行时接口，下一帧就生效）。
 
-代价也说清楚：程序化适合"几何清晰、颜色简单"的角色（球、方块、云、果冻），做不出毛边、手绘纹理。要画带渐变和细节的角色，走 4.3 节的"换渲染器"路线直接 blit RGB565 贴图，接口是同一套。
+代价也说清楚：程序化适合"几何清晰、颜色简单"的角色（球、方块、云、果冻），做不出毛边、手绘纹理。要画带渐变和细节的角色，走 4.2 节的"换渲染器"路线直接 blit RGB565 贴图，接口是同一套。
 
 ## 2. 渲染管线
 
@@ -158,7 +158,7 @@ qiuqiu::set_eye_roundness(0.45f);  // 固件默认：明显更圆润
 qiuqiu::set_eye_roundness(0.6f);   // 上限：接近椭圆，圆到有点"呆"
 ```
 
-圆度只改变轮廓形状，不改变大小和位置；想更圆又不想丢细节，可配合 4.2 节自己生成小眼环。
+圆度只改变轮廓形状，不改变大小和位置；想更圆又不想丢细节，可配合 4.1 节自己生成小眼环。
 
 ### 3.3 弹性手感
 
@@ -275,9 +275,9 @@ _fb_idx = back;
 
 | 路线 | 改什么 | 工作量 | 能做成什么样 |
 |---|---|---|---|
-| A. 改数据 | 颜色 / 圆度 / 表情 | 分钟级 | 同一个球的不同性格 |
-| B. 换几何 | 自己生成 24 点眼环 | 半小时 | 猫眼、星星眼、方眼、闭眼弧 |
-| C. 换渲染器 | 重写 `render()` | 半天 | 任意 2D 风格：贴图、粒子、像素画 |
+| A. 改数据 | 颜色 / 圆度 / 表情（第 3 节） | 分钟级 | 同一个球的不同性格 |
+| B. 换几何 | 自己生成 24 点眼环（4.1） | 半小时 | 猫眼、星星眼、方眼、闭眼弧 |
+| C. 换渲染器 | 重写 `render()`（4.2） | 半天 | 任意 2D 风格：贴图、粒子、像素画 |
 
 ### 4.1 方式一：自己生成 24 点环
 
@@ -374,7 +374,7 @@ void render(uint16_t* fb, uint32_t now_ms)
 |---|---|
 | 帧缓冲 | `uint16_t*`，长度 `w*h`，**行优先、无 padding**，元素是原生 RGB565（不是字节流） |
 | 绘制责任 | 自己清屏或覆盖要画的区域，不要假设缓冲里是上一帧 |
-| 单帧时间 | 目标 20 fps（50 ms）；超过 40 ms 会让按键/触摸明显迟滞 |
+| 单帧时间 | 目标 20 fps（50 ms）；超过 40 ms 会明显影响按键/触摸响应 |
 | 调用频率 | 动画 50 ms、静止 120 ms 一拍，由 app 决定，不保证固定节拍 |
 | 时间来源 | 只用传入的 `now_ms`（uint32 毫秒，可回绕）；不要读 `millis()`，host 预览没有 HAL |
 | 内存 | 不在 `render()` 里 `malloc`；临时缓冲用 `static` 或 PSRAM 预分配 |
@@ -393,7 +393,7 @@ void render(uint16_t* fb, uint32_t now_ms)
 
 `qiuqiu_engine.cpp` 只 include `<math.h>` 和 `<string.h>`，不依赖 ESP-IDF、M5GFX、LVGL，所以能在 PC 上原样编译，几秒钟出图。
 
-### 5.1 一个零依赖的 PNG 写出（`png_io.h`）
+### 5.1 只依赖 zlib 的 PNG 写出（`png_io.h`）
 
 ```cpp
 // png_io.h — 最小 PNG 写出（RGB888），只依赖 zlib
@@ -523,7 +523,7 @@ ffmpeg -framerate 20 -i out/frame_%04d.png -pix_fmt yuv420p -y qiuqiu.mp4
 mkdir -p strip && for e in $(seq 0 14); do
   mkdir -p strip/$e && ./host_preview strip/$e 240 240 88 $e 20
 done
-magick montage strip/*/frame_0019.png -tile 5x3 -geometry 200x200+2+2 exprs.png
+magick montage strip/*/frame_0019.png -tile 5x3 -geometry 200x200+2+2 exprs.png  # IM6 去掉 magick
 ```
 
 坑：半径要和尺寸匹配（`466 466 168` 是 466 屏上的球，`240 240 88` 是等比缩小）；固定 `+50` 表示 20 fps，改成 `+16` 只是采样更密，不代表固件能跑 60 fps；host 上的毫秒数不能当设备帧率。另外，强冲量 + 大半径偶尔会在球顶留一条细弧（清理区边界），预览时用 `request_blink()` 而不是 `poke()` 就看不到。
@@ -550,8 +550,8 @@ magick montage strip/*/frame_0019.png -tile 5x3 -geometry 200x200+2+2 exprs.png
 | **常驻合计** | **415,152 B（405 KiB）** | PSRAM |
 | 一次性清屏缓冲 `466×466×2`（用完释放） | 434,312 B（424 KiB） | PSRAM |
 | 对比：全屏双缓冲 `2 × 466×466×2` | 868,624 B（848 KiB） | PSRAM |
-| 引擎静态暂存（平滑/扫描线/轮廓） | 14,636 B | 内部 RAM `.bss` |
-| 形象数据（18 环 + 18 眼位 + 15 表情 + 名字） | 1,584 B | flash `.rodata` |
+| 引擎静态暂存（平滑/扫描线/轮廓） | 约 14.3 KiB（x86 口径） | 内部 RAM `.bss` |
+| 形象数据（18 环 + 18 眼位 + 15 表情 + 名字） | 约 1.6 KiB | flash `.rodata` |
 
 **推屏带宽是硬上限**：372×372×2 = 276,768 B，实测 23–24 ms，即 ≈11.5 MB/s；加大 `writePixels` 分块没有改善，说明瓶颈是 SPI 带宽而非调用次数。全屏 466² 推屏 434,312 B ≈ 36 ms，与实测一致；想再快只能减像素（缩视口、脏矩形）或换更快的总线配置，继续调 chunk 没用。
 
@@ -579,11 +579,11 @@ magick montage strip/*/frame_0019.png -tile 5x3 -geometry 200x200+2+2 exprs.png
 |---|---|---|
 | `init(w, h, radius_px)` | 设定画布与球半径 | 用三参版本 |
 | `set_expression(i, now_ms)` | 切表情 | 同值直接返回，不触发冲量 |
-| `expression()` / `count()` / `expression_name(i)` | 当前 / 总数 / 名字 | — |
+| `expression()` / `expression_count()` / `expression_name(i)` | 当前 / 总数 / 名字 | — |
 | `set_agent_color(0..2)` | 白 / 蓝 / 红 | 其它值夹到 0 |
 | `cycle_agent_color()` / `agent_color_index()` | 循环 / 当前下标 | B 键用 |
 | `set_gaze(h, v)` | 注视偏移（-1~1） | 设计坐标 ±16.8 / ±10.5 px |
-| `request_blink(now_ms)` / `poke(now_ms)` | 立刻眨眼 / 果冻冲量 | 自动眨眼另有一套（3.4~6.2 s） |
+| `request_blink(now_ms)` / `poke(now_ms)` | 立刻眨眼 / 果冻冲量 | 自动眨眼间隔 3.4~6.2 s |
 | `set_tuning` / `set_eye_roundness` / `set_eye_smoothing` | 手感 / 圆度 / 平滑精度 | 见 3.2–3.3 |
 | `render(fb, now_ms)` | 画一帧 | 不推屏、不分配内存 |
 
@@ -591,10 +591,10 @@ magick montage strip/*/frame_0019.png -tile 5x3 -geometry 200x200+2+2 exprs.png
 
 | 现象 | 原因 | 处理 |
 |---|---|---|
-| 球很小 / 超出屏幕 | 半径没跟着分辨率缩放 | 按 466:186 同比减半 |
+| 球很小 / 超出屏幕 | 半径没跟着分辨率缩放 | 半径同比缩放（168 → 84） |
 | 眼睛全是折线 | 平滑迭代被设成 1 且半径很大 | `set_eye_smoothing(2)` 或 3 |
 | 切换表情时"炸开" | `amp_scale` 太大 | 降到 1.0 附近，或改 `shape_for_expr()` |
-| host 预览全黑 | 没切表情且时间从 0 开始 | 起始 `now_ms` 给 1000，先 `set_expression()` |
+| host 预览全黑 | 没调 `render()` 就存图，或输出目录不存在 | 先 `render()`，先 `mkdir -p` |
 
 ---
 **相关**：`docs/05-pitfalls.md`（真机踩坑记录）、`licenses/`（许可原文）。
