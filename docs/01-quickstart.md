@@ -49,7 +49,8 @@ python -m esptool --chip esp32s3 -p /dev/ttyACM0 -b 460800 \
 
 ```bash
 cd ../android
-./gradlew assembleDebug
+# 用 Android Studio 打开这个目录直接 Build，或用系统安装的 gradle：
+gradle assembleDebug
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 
 # 授权（必须！否则蓝牙用不了）
