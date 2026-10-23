@@ -199,6 +199,29 @@ public:
     void setSpeakerAmp(bool on);
     /* USB-C NeoPixel: on while external power is present */
     void setChargeLed(bool on);
+
+    /* True when USB power is present; reports true if the PMIC cannot be read */
+    bool usbPowerPresent();
+
+    /* A/B firmware slots (see hal_ota.cpp) */
+    struct OtaSlot {
+        char     name;
+        uint32_t size_kb;
+        uint32_t image_kb;
+        bool     valid;
+        bool     running;
+        int      state;          /* esp_ota_img_states_t of the running slot */
+    };
+    int  otaSlots(OtaSlot* out, int max);
+    esp_err_t otaSwitchToOther();
+    esp_err_t otaCloneRunningToOther();
+    esp_err_t otaConfirmIfPending(bool self_test_ok);
+    bool otaOtherSlotValid();
+
+    /* Automatic light sleep with an explicit gate (see hal_power.cpp) */
+    void powerInit(int max_mhz, int min_mhz, bool light_sleep);
+    void powerBusy(const char* who);
+    void powerIdle(const char* who);
     int getSpeakerVolume(bool loadFromSettings = false);
     int getAudioSampleRate();
     void audioRecord(std::vector<int16_t>& data, uint16_t durationMs, float gain = 30.0f);
@@ -286,6 +309,7 @@ private:
     ButtonConfig _btn_config;
     AudioSpectrumFrame _audio_spectrum;
     int _bl_brightness = 80;
+    int _bl_last_nonzero = 80;
     int _spk_volume    = 80;
 
     void i2c_init();

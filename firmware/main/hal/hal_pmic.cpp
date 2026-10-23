@@ -176,6 +176,21 @@ void Hal::setChargeLed(bool on)
     }
 }
 
+/* Fail-safe VBUS check: on any I2C doubt report "present" so we never sleep
+   while a USB host may be attached (light sleep kills the USB-Serial-JTAG
+   console and it does not always come back). */
+bool Hal::usbPowerPresent()
+{
+    if (!_pm1) return true;
+    for (int i = 0; i < 3; ++i) {
+        uint16_t vin_mv = 0;
+        if (_pm1->readVin(&vin_mv) == M5PM1_OK) {
+            return vin_mv > 4000;
+        }
+    }
+    return true;
+}
+
 bool Hal::isBatteryCharging(bool strict)
 {
     if (!_pm1) {

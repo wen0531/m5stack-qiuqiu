@@ -446,9 +446,17 @@ static void host_task(void *param)
     nimble_port_freertos_deinit();
 }
 
+static volatile bool s_ble_up = false;
+
+bool ble_svc_started(void)
+{
+    return s_ble_up;
+}
+
 esp_err_t ble_svc_start(void)
 {
     int rc = nimble_port_init();
+    if (rc == 0) s_ble_up = true;
     if (rc != 0) {
         ESP_LOGE(TAG, "nimble_port_init rc=%d", rc);
         return ESP_FAIL;

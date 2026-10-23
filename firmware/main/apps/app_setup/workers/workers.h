@@ -40,6 +40,23 @@ protected:
  * @brief
  *
  */
+class SlotActionWorker : public WorkerBase {
+public:
+    enum class Action { Switch, Clone, Blocked };
+    explicit SlotActionWorker(Action action);
+    ~SlotActionWorker() override;
+    void update() override;
+
+private:
+    class SlotView;
+    std::unique_ptr<SlotView> _view;
+    Action _action;
+    bool _started = false;
+    bool _done = false;
+    uint32_t _done_at = 0;
+    std::string _result;
+};
+
 class BrightnessWorker : public WorkerBase {
 public:
     BrightnessWorker();

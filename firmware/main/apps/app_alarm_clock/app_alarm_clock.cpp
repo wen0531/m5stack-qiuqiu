@@ -29,6 +29,10 @@ void AppAlarmClock::onCreate()
     }
 
     _alarm_clock->onTriggered().connect([this](const model::AlarmClock::AlarmTriggeredEvent& event) {
+        /* an alarm must be able to light the screen by itself: with the panel
+           off LVGL does not render, so nothing would ever be shown */
+        GetHAL().markActivity();
+        GetHAL().screenWake();
         std::unique_ptr<view::AlarmTriggerView> trigger_view;
         {
             LvglLockGuard lock;
