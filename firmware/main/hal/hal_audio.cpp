@@ -142,13 +142,6 @@ public:
 
     void play(std::vector<int16_t>& data, bool async, bool silence_after = true)
     {
-        int peak = 0;
-        for (size_t i = 0; i < data.size(); i += 97) {
-            int a = data[i] < 0 ? -data[i] : data[i];
-            if (a > peak) peak = a;
-        }
-        printf("DBG play async=%d n=%d peak=%d vol=%d d0=%d d1=%d\n", (int)async, (int)data.size(),
-               peak, _out_vol, data.empty() ? 0 : data[0], data.size() > 1 ? data[1] : 0);
         std::lock_guard<std::mutex> lock(_mutex);
         if (async) {
             _audio_data = data;
@@ -258,7 +251,6 @@ private:
         while (1) {
             // Wait for play request
             ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-            printf("DBG task wake\n");
 
             while (true) {
                 // Fetch data safely
@@ -296,7 +288,6 @@ private:
 
                     int wr = esp_codec_dev_write(_codec_dev, (void*)&current_data[offset], write_samples * sizeof(int16_t));
                     if (offset == 0 || offset + write_samples >= total_samples) {
-                        printf("DBG chunk off=%d/%d ret=%d\n", (int)offset, (int)total_samples, wr);
                     }
                     offset += write_samples;
                 }
@@ -336,10 +327,8 @@ private:
 
     void _write(const std::vector<int16_t>& data)
     {
-        printf("DBG write n=%d vol=%d playing=%d\n", (int)data.size(), _out_vol, (int)_is_playing);
         int r1 = esp_codec_dev_write(_codec_dev, (void*)data.data(), data.size() * sizeof(int16_t));
         int r2 = esp_codec_dev_write(_codec_dev, (void*)_silence_buffer.data(), _silence_buffer.size() * sizeof(int16_t));
-        printf("DBG write ret=%d/%d\n", r1, r2);
     }
 
     void _i2s_init()

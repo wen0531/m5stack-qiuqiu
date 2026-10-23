@@ -55,6 +55,7 @@ static bool btn_a_prev = false;   /* for edge detection: A interrupts playback *
 
 static volatile int s_state = VOICE_IDLE;
 static volatile bool g_playing = false;
+static bool s_session_active = false;   /* a turn holds the sleep gate */
 /* A was pressed while a reply was playing: write_tick() drops the rest of the
    downlink (and drains the DMA with silence) until the next talk starts. */
 static volatile bool g_play_interrupt = false;
@@ -218,6 +219,7 @@ static void voice_task(void* arg)
         GetHAL().audioIdleCheck();   /* close the codec after 30 s of silence */
         bool want = (ptt_pressed(now) || ble_svc_remote_talk()) && connected;
         if (want && !talking) {
+            if (!s_session_active) { s_session_active = true; GetHAL().powerBusy("session"); }
             adpcm_reset(&st);
             seq = 0;
             talking = true;
@@ -233,6 +235,7 @@ static void voice_task(void* arg)
         } else if (!want && talking) {
             talking = false;
             think_until = now + 30000;   /* keep the panel awake while the agent answers */
+            /* the gate stays held until the answer has played (or timed out) */
             if (!g_playing) ble_svc_set_audio_mode(false);
             ble_svc_status_notify(0x11);
             ESP_LOGI(TAG, "PTT stop (frames=%lu)", (unsigned long)frames);
@@ -250,6 +253,11 @@ static void voice_task(void* arg)
                 else if (cmd == 0x36) { /* codec stays 44.1 kHz: no mode switch */ }
                 else if (cmd == 0x37) { }
             }
+            if (s_session_active && !talking && !g_playing &&
+                (int32_t)(now - think_until) > 0) {
+                s_session_active = false;
+                GetHAL().powerIdle("session");
+            }
             if (g_playing && !g_play_interrupt) {
                 s_state = VOICE_SPEAKING;
             } else if (!connected) {
@@ -261,7 +269,7 @@ static void voice_task(void* arg)
             } else {
                 s_state = VOICE_IDLE;
             }
-            vTaskDelay(pdMS_TO_TICKS(30));   /* idle: fewer wake-ups */
+            vTaskDelay(pdMS_TO_TICKS(30));   /* idle: 30 ms keeps quick B-key presses */
             continue;
         }
 
@@ -514,6 +522,11 @@ void write_tick()
             abort_silence++;
         }
         g_playing = false;
+        GetHAL().powerIdle("audio");
+        if (s_session_active) {           /* interrupted: the turn is over */
+            s_session_active = false;
+            GetHAL().powerIdle("session");
+        }
         last_data_ms = 0;
         started = false;
         return;
@@ -531,6 +544,7 @@ void write_tick()
             }
             started = true;
             g_playing = true;
+            GetHAL().powerBusy("audio");
             fade_in_left = 882;             /* 20 ms fade-in */
             ble_svc_set_audio_mode(true);
             ble_svc_status_notify(0x12);
@@ -602,7 +616,7 @@ static void downlink_writer_task(void* arg)
     (void)arg;
     for (;;) {
         write_tick();
-        vTaskDelay(pdMS_TO_TICKS(20));   /* idle downlink poll */
+        vTaskDelay(pdMS_TO_TICKS(20));   /* idle downlink poll (20 ms: 60 ms causes underruns) */
     }
 }
 

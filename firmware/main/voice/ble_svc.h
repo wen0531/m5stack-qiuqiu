@@ -27,6 +27,9 @@ extern "C" {
 
 esp_err_t ble_svc_start(void);
 
+/* true once the NimBLE stack initialised successfully */
+bool ble_svc_started(void);
+
 /* connected and audio notifications subscribed */
 bool ble_svc_ready(void);
 

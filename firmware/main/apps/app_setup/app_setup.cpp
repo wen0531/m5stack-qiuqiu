@@ -13,6 +13,22 @@ using namespace mooncake;
 using namespace view;
 using namespace setup_workers;
 
+/* One line describing both slots, e.g. "A: 3.0MB run  B: empty" */
+static std::string slot_status_text()
+{
+    Hal::OtaSlot slots[2] = {};
+    const int n = GetHAL().otaSlots(slots, 2);
+    if (n == 0) return "No slots found";
+    std::string s;
+    for (int i = 0; i < n; ++i) {
+        if (i) s += "   ";
+        s += slots[i].name;
+        s += slots[i].running ? ": running"
+                              : (slots[i].valid ? ": backup ok" : ": empty");
+    }
+    return s;
+}
+
 AppSetup::AppSetup()
 {
     setAppInfo().name = "Settings";
@@ -69,6 +85,29 @@ void AppSetup::onOpen()
                  [&]() {
                      _destroy_menu = true;
                      _worker       = std::make_unique<SetDateWorker>();
+                 }},
+            },
+        },
+        {
+            "System Slots",
+            {
+                {slot_status_text(),
+                 [&]() { /* informational only */ }},
+                {"Switch to other slot",
+                 [&]() {
+                     _destroy_menu = true;
+                     _worker = std::make_unique<SlotActionWorker>(SlotActionWorker::Action::Switch);
+                 }},
+                {"Clone current to other",
+                 [&]() {
+                     _destroy_menu = true;
+                     /* Never overwrite the only good backup: cloning is only
+                        allowed into an empty or broken slot. */
+                     if (GetHAL().otaOtherSlotValid()) {
+                         _worker = std::make_unique<SlotActionWorker>(SlotActionWorker::Action::Blocked);
+                     } else {
+                         _worker = std::make_unique<SlotActionWorker>(SlotActionWorker::Action::Clone);
+                     }
                  }},
             },
         },

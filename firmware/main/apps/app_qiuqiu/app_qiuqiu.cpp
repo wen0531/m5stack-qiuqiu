@@ -91,7 +91,7 @@ static void dump_fb_ble(const uint16_t* fb)
         }
     }
     ble_svc_debug_send(buf, n);
-    printf("FB_DUMP_SENT %d\n", (int)n);
+    /* printf removed: console traffic keeps the CPU awake */
 }
 
 static int auto_expression()

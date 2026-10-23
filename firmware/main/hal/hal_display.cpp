@@ -207,6 +207,7 @@ void Hal::updateCanvas()
 void Hal::setBackLightBrightness(int brightness, bool saveToSettings)
 {
     _bl_brightness = uitk::clamp(brightness, 0, 100);
+    if (_bl_brightness > 0) _bl_last_nonzero = _bl_brightness;   /* survives a dim-to-zero */
 
     int set_target = uitk::map_range(_bl_brightness, 0, 100, 0, 255);
     _display->setBrightness(set_target);
@@ -222,6 +223,9 @@ void Hal::setBackLightBrightness(int brightness, bool saveToSettings)
 /*                            Unified screen power                            */
 /* -------------------------------------------------------------------------- */
 
+static void lvgl_tick_set_enabled(bool on);   /* defined below */
+static lv_indev_t* lvTouchpad = nullptr;      /* file scope: the idle task polls it */
+
 namespace {
 volatile uint32_t g_last_activity_ms = 0;
 volatile bool g_screen_off = false;
@@ -230,22 +234,34 @@ constexpr uint32_t SCREEN_IDLE_MS = 5000;
 void screen_sleep_now(const char* reason)
 {
     if (g_screen_off) return;
+    GetHAL().lvglLock();          /* serialise with the LVGL render task */
     g_screen_off = true;
     /* real panel sleep: display off + sleep in (framebuffer panel's own
        setSleep() is a no-op, so drive the base panel command directly) */
     _display->setBrightness(0);
     _display->panelSleepIn();
+    /* panel is asleep and its bus is idle: now the chip may sleep, but only
+       on battery - a USB host keeps the console (and our ability to flash)
+       alive, and light sleep would take that away. */
+    lvgl_tick_set_enabled(false);        /* no 10 ms wake-ups while dark */
+    GetHAL().powerIdle("display");       /* nothing needs the panel now */
     mclog::tagInfo("HAL-Display", "screen off ({})", reason);
+    GetHAL().lvglUnlock();
 }
 
 void screen_wake_now(int brightness)
 {
     if (!g_screen_off) return;
+    /* claim the buses before touching the panel again */
+    GetHAL().powerBusy("display");
+    lvgl_tick_set_enabled(true);
+    GetHAL().lvglLock();
     g_screen_off = false;
     _display->panelSleepOut();            /* 0x11 SLPOUT + 150 ms, 0x29 DISPON */
     _display->setBrightness(uitk::map_range(uitk::clamp(brightness, 0, 100), 0, 100, 0, 255));
     lv_obj_invalidate(lv_screen_active());
     mclog::tagInfo("HAL-Display", "screen on");
+    GetHAL().lvglUnlock();
 }
 }  // namespace
 
@@ -264,7 +280,7 @@ void Hal::screenTick()
 
     if (g_screen_off) {
         if (idle < SCREEN_IDLE_MS) {
-            screen_wake_now(_bl_brightness);
+            screen_wake_now(_bl_last_nonzero);
         }
     } else if (idle > SCREEN_IDLE_MS) {
         screen_sleep_now("idle");
@@ -339,10 +355,21 @@ static std::atomic<bool> _lvgl_update_enabled = false;
 
 #define LV_BUFFER_LINE 120
 
+static esp_timer_handle_t s_lvgl_tick_timer = nullptr;
+
 static void lvgl_tick_timer(void *arg)
 {
     (void)arg;
     lv_tick_inc(10);
+}
+
+/* The 10 ms tick wakes the CPU 100 times per second - pointless while the
+   panel is off, so stop it with the screen. */
+static void lvgl_tick_set_enabled(bool on)
+{
+    if (s_lvgl_tick_timer == nullptr) return;
+    if (on) esp_timer_start_periodic(s_lvgl_tick_timer, 10 * 1000);
+    else    esp_timer_stop(s_lvgl_tick_timer);
 }
 
 static void lvgl_rtos_task(void *pvParameter)
@@ -350,11 +377,17 @@ static void lvgl_rtos_task(void *pvParameter)
     (void)pvParameter;
     while (1) {
         /* while the panel sleeps, do not render: saves the biggest chunk */
-        if (_lvgl_update_enabled && !g_screen_off && pdTRUE == xSemaphoreTake(xGuiSemaphore, portMAX_DELAY)) {
-            lv_timer_handler();
+        if (_lvgl_update_enabled && pdTRUE == xSemaphoreTake(xGuiSemaphore, portMAX_DELAY)) {
+            if (g_screen_off) {
+                /* no rendering while dark, but the touch panel still has to be
+                   polled or a tap can never wake the watch */
+                lv_indev_read(lvTouchpad);
+            } else {
+                lv_timer_handler();
+            }
             xSemaphoreGive(xGuiSemaphore);
         }
-        vTaskDelay(pdMS_TO_TICKS(10));
+        vTaskDelay(pdMS_TO_TICKS(g_screen_off ? 60 : 10));
     }
 }
 
@@ -449,9 +482,8 @@ void Hal::lvgl_init()
 
     xGuiSemaphore                                     = xSemaphoreCreateMutex();
     const esp_timer_create_args_t periodic_timer_args = {.callback = &lvgl_tick_timer, .name = "lvgl_tick_timer"};
-    esp_timer_handle_t periodic_timer;
-    ESP_ERROR_CHECK(esp_timer_create(&periodic_timer_args, &periodic_timer));
-    ESP_ERROR_CHECK(esp_timer_start_periodic(periodic_timer, 10 * 1000));
+    ESP_ERROR_CHECK(esp_timer_create(&periodic_timer_args, &s_lvgl_tick_timer));
+    ESP_ERROR_CHECK(esp_timer_start_periodic(s_lvgl_tick_timer, 10 * 1000));
     xTaskCreate(lvgl_rtos_task, "lvgl_rtos_task", 4096 * 4, NULL, 1, NULL);
 
     startLvglUpdate();
