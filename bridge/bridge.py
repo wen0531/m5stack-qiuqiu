@@ -43,17 +43,6 @@ def asr(path: Path) -> str:
         return ''
 
 
-def _gateway_key():
-    try:
-        for line in open(os.environ.get('HERMES_ENV_FILE', os.path.expanduser('~/.hermes/.env'))):
-            line = line.strip()
-            if line.startswith('API_SERVER_KEY='):
-                return line.split('=', 1)[1].strip()
-    except Exception:
-        pass
-    return ''
-
-
 import unicodedata
 
 SWITCH_PREFIXES = ('换', '叫', '切到', '切换到', '用', '找', '换成')
@@ -109,31 +98,6 @@ def ask_agent(text: str) -> str:
         return agent_backend.ask(text)
     except Exception as e:
         print('[relay] agent failed:', type(e).__name__, e, flush=True)
-        return ''
-
-
-def hermes_chat(text: str, system_prompt: str = '') -> str:
-    """Ask the local Hermes gateway (OpenAI-compatible API, same channel as its IM gateways)."""
-    key = _gateway_key()
-    if not key:
-        return ''
-    sys_p = system_prompt or ('你是 M5Stack 手表上的语音助手。回答必须口语化、简短（一到两句话），'
-                              '不要用 Markdown、列表或表情符号。')
-    body = json.dumps({
-        'model': 'hermes',
-        'messages': [{'role': 'system', 'content': sys_p},
-                     {'role': 'user', 'content': text}],
-        'stream': False,
-    }).encode()
-    req = urllib.request.Request('http://127.0.0.1:8642/v1/chat/completions', data=body,
-                                 headers={'Content-Type': 'application/json',
-                                          'Authorization': f'Bearer {key}'})
-    try:
-        with urllib.request.urlopen(req, timeout=180) as r:
-            data = json.loads(r.read().decode())
-        return (data.get('choices') or [{}])[0].get('message', {}).get('content', '').strip()
-    except Exception as e:
-        print('[relay] hermes failed:', e, flush=True)
         return ''
 
 
@@ -354,7 +318,7 @@ async def ws_handler(request):
                             text = rest
 
                         if text:
-                            if os.environ.get('REPLY_MODE', 'hermes') == 'echo':
+                            if os.environ.get('REPLY_MODE', 'agent') == 'echo':
                                 reply = os.environ.get('REPLY_PREFIX', '我听到你说，') + text
                             else:
                                 await ws.send_json({'type': 'thinking'})

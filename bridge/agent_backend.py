@@ -39,7 +39,8 @@ def _config():
 
 
 def current_agent():
-    return _config().get('default', 'hermes')
+    cfg = _config()
+    return cfg.get('default') or next(iter(cfg.get('agents', {})), '')
 
 
 def set_agent(name):
@@ -72,15 +73,31 @@ def _clean(text: str) -> str:
     return out
 
 
-def _hermes_key():
-    """The Hermes gateway wants API_SERVER_KEY; read it from its env file."""
-    try:
-        for line in open(os.environ.get('HERMES_ENV_FILE', os.path.expanduser('~/.hermes/.env'))):
-            line = line.strip()
-            if line.startswith('API_SERVER_KEY='):
-                return line.split('=', 1)[1].strip()
-    except OSError:
-        pass
+def _key_for(cfg):
+    """Resolve the API key: environment variable first, then an optional env file.
+
+    agents.json controls both:
+      "api_key_env": "RELAY_API_KEY"                 -> read that env var
+      "env_file": "~/.config/qiuqiu/agent.env"       -> or parse it
+      "env_keys": ["MY_API_KEY"]                      -> which keys to take from the file
+    """
+    name = cfg.get('api_key_env')
+    if name:
+        val = os.environ.get(name, '')
+        if val:
+            return val
+    path = cfg.get('env_file')
+    keys = cfg.get('env_keys') or []
+    if path and keys:
+        try:
+            for line in open(os.path.expanduser(path)):
+                line = line.strip()
+                if '=' in line and not line.startswith('#'):
+                    k, v = line.split('=', 1)
+                    if k.strip() in keys:
+                        return v.strip().strip('"').strip("'")
+        except OSError:
+            pass
     return ''
 
 
@@ -111,7 +128,7 @@ def _remember(text, answer):
 
 def _ask_http(cfg, text):
     payload = {
-        'model': cfg.get('model', 'hermes'),
+        'model': cfg.get('model', 'default'),
         'messages': ([{'role': 'system', 'content': VOICE_SYSTEM}] + _history_messages(text)),
         'stream': False,
     }
@@ -120,7 +137,7 @@ def _ask_http(cfg, text):
         payload['provider'] = cfg['provider']
     body = json.dumps(payload).encode()
     headers = {'Content-Type': 'application/json'}
-    key = os.environ.get('RELAY_API_KEY', '') or _hermes_key()
+    key = _key_for(cfg)
     if key:
         headers['Authorization'] = f'Bearer {key}'
     req = urllib.request.Request(cfg['url'], data=body, headers=headers)
@@ -185,7 +202,7 @@ def ask(text):
     with silence, so each configured fallback is tried until one answers.
     """
     cfg = _config()
-    primary = cfg.get('default', 'hermes')
+    primary = cfg.get('default') or next(iter(cfg.get('agents', {})), '')
     order = [primary] + [f for f in cfg.get('fallback', []) if f != primary and f in cfg['agents']]
     last_err = None
     for name in order:
