@@ -9,7 +9,7 @@
 - B 键循环切换后台 Agent（球球颜色：白/蓝/红）
 - 语音切换后台（说别名，如"小马/小地/大地"，可配置）
 - 程序化 C++ 球球形象，15 个表情，无图片资源
-- Opus 下行编码（24/32 kbps 可调），固定 20 ms 播放节奏
+- Opus 下行编码（24/24 kbps 可调），固定 20 ms 播放节奏
 - 手机 App：BLE + WebSocket 中继、前台服务保活、开机自启、按 MAC 自动重连
 - 电脑桥：HTTPS/WSS、火山引擎流式 ASR、edge-tts、多 Agent 适配（HTTP/CLI）、失败自动降级
 - IPv6 DDNS（Cloudflare）脚本 + systemd 定时器

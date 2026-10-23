@@ -5,7 +5,7 @@
 > 2. The watch captures push-to-talk audio and streams it over BLE to an Android relay app.
 > 3. The app forwards the audio through a WebSocket to a Python bridge running on a PC.
 > 4. The bridge performs streaming ASR, sends the transcript to a configurable LLM agent, and synthesizes a spoken reply.
-> 5. Replies are encoded as 32 kbps Opus and played back on the watch over the same BLE link.
+> 5. Replies are encoded as 24 kbps Opus and played back on the watch over the same BLE link.
 > 6. A procedural C++ ball avatar renders 15 expressions without any image assets.
 > 7. Button A controls push-to-talk and playback interruption; button B cycles the backend agent.
 > 8. Power-saving measures include CPU DFS at 160/80 MHz, BLE modem sleep, and on-demand codec/amplifier power.
@@ -45,7 +45,7 @@ M5Stack Qiuqiu（球球）把 M5Stack StopWatch 手表改造成一个随身语�
  [电脑 · Python 桥 bridge.py]
    ├──► 流式 ASR（默认云端） ──► 文本
    ├──► LLM Agent（HTTP / CLI） ──► 回复文本
-   └──► edge-tts ──► 16 kHz WAV ──► Opus 32 kbps
+   └──► edge-tts ──► 16 kHz WAV ──► Opus 24 kbps
    │
    └──► 原路返回手表播放
 ```
@@ -73,7 +73,7 @@ M5Stack Qiuqiu（球球）把 M5Stack StopWatch 手表改造成一个随身语�
 | 15 个表情 | NEUTRAL、HAPPY、SAD、ANGRY、DOUBT、SLEEPY、LISTENING、THINKING、EXCITED、CURIOUS、CONFUSED、SURPRISED、DIZZY、AFFECTION、BORED | 已实现 |
 | 语音状态驱动表情 | 聆听、思考、说话、开心、困倦、待机自动切换 | 已实现 |
 | 程序化球球 | 变形球体 + 弹簧物理 + Chaikin 平滑 + 扫描线抗锯齿，无图片资源 | 已实现 |
-| Opus 32 kbps 下行 | 60 ms 帧、固定 20 ms 播放节奏、200 ms 起播预缓冲 | 已实测 |
+| Opus 24 kbps 下行 | 60 ms 帧、固定 20 ms 播放节奏、200 ms 起播预缓冲 | 已实测 |
 | 自定义 BLE GATT | 控制、音频、状态三个特征；MTU 400；断线自动重连 | 已实测 |
 | 省电组合 | CPU DFS 160/80 MHz、BLE modem sleep、codec/功放按需、空闲熄屏与轮询降频 | 部分实测，续航实测中 |
 | 充电指示灯 | USB 插入亮绿灯，拔掉熄灭 | 已实测 |
@@ -145,7 +145,7 @@ App 支持三种地址来源：局域网地址、DDNS 域名、本机回环（�
 3. 手机剥掉包头，把 160 字节载荷经 WebSocket 发给桥；桥解码为 16 kHz PCM，松手后落盘 WAV。
 4. 桥调用 ASR 得到文本，检查是否包含后台切换别名；必要时先切换，再把剩余问题交给 Agent。
 5. Agent 返回文本后，桥调用 edge-tts 合成语音，`ffmpeg` 转为 16 kHz 单声道 WAV。
-6. 桥用 Opus CBR 32 kbps、60 ms 帧编码，按媒体时钟发送；手机补包头后写入手表。
+6. 桥用 Opus CBR 24 kbps、60 ms 帧编码，按媒体时钟发送；手机补包头后写入手表。
 7. 手表解码、重采样到 44.1 kHz，按固定 20 ms 节奏送喇叭；连续 2 秒没有新数据后结束播放。
 
 ### 3.5 BLE 协议摘要
@@ -161,7 +161,7 @@ App 支持三种地址来源：局域网地址、DDNS 域名、本机回环（�
 音频包统一为 `u16 seq（小端） | u8 codec | u8 flags | payload`：
 
 - **上行**：`codec=1`，IMA-ADPCM 4 bit，16 kHz，20 ms / 160 B 载荷，约 64 kbps 净荷。
-- **下行**：`codec=2`，Opus 16 kHz 单声道，60 ms 帧，默认 32 kbps CBR，240 B 载荷。
+- **下行**：`codec=2`，Opus 16 kHz 单声道，60 ms 帧，默认 24 kbps CBR，240 B 载荷。
 - **备选下行**：`codec=1`，ADPCM，20 ms / 160 B，用于兼容旧固件或对比音质。
 - **事件/调试**：`codec=0x7E` 事件，`codec=0x7F` 调试透传（电池 CSV、帧缓冲转储）。
 
@@ -341,6 +341,8 @@ App 支持三种地址来源：局域网地址、DDNS 域名、本机回环（�
 | `firmware/main/hal/hal_audio.cpp` | `idleCheck()` | 30 秒无音频关闭 codec 与功放 |
 | `firmware/main/apps/app_qiuqiu/app_qiuqiu.cpp` | `FRAME_MS` / `FRAME_MS_IDLE` | 动画 20 fps，静止 8 fps |
 
+省电功能依赖 `CONFIG_PM_ENABLE`、`CONFIG_BT_CTRL_MODEM_SLEEP` 与 `CONFIG_BT_CTRL_MODEM_SLEEP_MODE_1`；使用仓库默认配置构建前应确认这些选项已启用。
+
 ### 7.6 密钥与证书
 
 - API key 通过环境变量或本地文件注入，不写入 `agents.json`，也不提交到仓库。
@@ -408,7 +410,7 @@ App 支持三种地址来源：局域网地址、DDNS 域名、本机回环（�
 - **网页调试页只验证过 ADPCM。** 网页端把下行包头写死为 ADPCM，使用 Opus 下行时不要用网页页做播放验证。
 - **iOS 没有原生 App。** 网页页依赖 Chrome 的 Web Bluetooth，iOS Safari 不支持。
 - **电池遥测是内存环。** 1440 条样本存在 PSRAM，重启后清空；跨重启的续航分析需要连续不重启采样。
-- **音频质量受硬件限制。** 小喇叭在接近满幅时会出现机械失真，固件不做软件增益；Opus 32 kbps 也不是高保真音乐编码。
+- **音频质量受硬件限制。** 小喇叭在接近满幅时会出现机械失真，固件不做软件增益；Opus 24 kbps 也不是高保真音乐编码。
 - **延迟以秒计。** 端到端时间主要花在 ASR 与 Agent 上，具体取决于网络和后台；不适合对实时性要求高的对话。
 - **没有 OTA 界面。** 升级需要重新刷写；分区表保留了 OTA 槽位，但没有做应用内升级流程。
 

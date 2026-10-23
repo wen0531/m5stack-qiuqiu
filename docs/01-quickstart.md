@@ -109,9 +109,9 @@ App 里地址填 `<电脑IP>:8443`，点启动，对着手表按住 A 说话，�
 ```bash
 mkdir -p ~/.config/qiuqiu
 cat > ~/.config/qiuqiu/volc_asr.env <<'EOF'
-VOLC_APP_ID=你的APPID
-VOLC_ACCESS_TOKEN=你的TOKEN
-VOLC_RESOURCE_ID=volc.seedasr.sauc.duration
+VOLCENGINE_ASR_APP_ID=你的APPID
+VOLCENGINE_ASR_ACCESS_TOKEN=你的TOKEN
+VOLCENGINE_ASR_RESOURCE_ID=volc.seedasr.sauc.duration
 EOF
 ```
 
