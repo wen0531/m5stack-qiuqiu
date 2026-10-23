@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Qiuqiu 手表固件刷写</title>
+  <script type="module" src="https://unpkg.com/esp-web-tools@10/dist/web/install-button.js?module"></script>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 640px; margin: 60px auto; padding: 0 20px; }
+    h1 { font-size: 1.6rem; }
+    .box { border: 1px solid #ddd; border-radius: 12px; padding: 24px; margin: 24px 0; }
+    esp-web-install-button { display: inline-block; }
+    code { background: #f5f5f5; padding: 2px 6px; border-radius: 4px; }
+    .warn { color: #b00; }
+  </style>
+</head>
+<body>
+  <h1>M5Stack Qiuqiu 固件刷写</h1>
+
+  <div class="box">
+    <p><strong>需要：</strong>桌面版 Chrome / Edge（不支持 Safari、Firefox），一根能传数据的 USB-C 线。</p>
+    <ol>
+      <li>用 USB-C 线把手表连到电脑</li>
+      <li>点击下面的按钮，选择串口</li>
+      <li>等待 1–2 分钟，看到 "Done" 后拔插一次 USB</li>
+    </ol>
+    <p class="warn">刷写会覆盖手表上的固件，请先确认你不需要原厂数据。</p>
+    <esp-web-install-button manifest="manifest.json"></esp-web-install-button>
+  </div>
+
+  <p>没有出现按钮？请用 Chrome 打开，并确认浏览器支持 Web Serial。</p>
+</body>
+</html>

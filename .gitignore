@@ -28,3 +28,6 @@ bridge/battery-*.csv
 *.log
 .env
 config.json
+
+# Pages flasher needs the firmware binaries
+!docs/flasher/*.bin
