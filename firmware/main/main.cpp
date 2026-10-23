@@ -10,6 +10,7 @@
 #include <apps/apps.h>
 #include <hal/hal.h>
 #include <esp_ota_ops.h>
+#include <driver/gpio.h>
 #include <voice/ble_svc.h>
 #include <esp_system.h>
 #include <freertos/FreeRTOS.h>
@@ -46,6 +47,51 @@ static void heartbeat_task(void*)
     }
 }
 
+/* 5 s window at boot: press B to start the other firmware slot.
+   Both slots run this firmware, so the choice is reversible. */
+static void boot_chooser()
+{
+    Hal::OtaSlot slots[2] = {};
+    if (GetHAL().otaSlots(slots, 2) < 2) return;
+
+    const Hal::OtaSlot* other = nullptr;
+    for (int i = 0; i < 2; ++i) {
+        if (!slots[i].running) other = &slots[i];
+    }
+    if (other == nullptr || !other->valid) return;   /* nothing to switch to */
+
+    lv_obj_t *panel = lv_obj_create(lv_screen_active());
+    lv_obj_remove_style_all(panel);
+    lv_obj_set_size(panel, 466, 466);
+    lv_obj_set_style_bg_color(panel, lv_color_black(), 0);
+    lv_obj_set_style_bg_opa(panel, LV_OPA_COVER, 0);
+
+    lv_obj_t *label = lv_label_create(panel);
+    lv_obj_set_style_text_color(label, lv_color_white(), 0);
+    lv_obj_set_style_text_font(label, &lv_font_montserrat_24, 0);
+    lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_center(label);
+
+    char text[128];
+    for (int t = 5; t > 0; --t) {
+        snprintf(text, sizeof(text), "Booting %c system\n\npress B for %c system\n%d",
+                 slots[0].running ? 'A' : 'B', other->name, t);
+        lv_label_set_text(label, text);
+        for (int i = 0; i < 10; ++i) {          /* 10 x 100 ms per second */
+            vTaskDelay(pdMS_TO_TICKS(100));
+            if (gpio_get_level(GPIO_NUM_1) == 0) {   /* B button, active low */
+                lv_obj_del(panel);
+                if (GetHAL().otaSwitchToOther() == ESP_OK) {
+                    vTaskDelay(pdMS_TO_TICKS(300));
+                    esp_restart();
+                }
+                return;
+            }
+        }
+    }
+    lv_obj_del(panel);
+}
+
 extern "C" void app_main(void)
 {
     // Setup logger
@@ -54,6 +100,8 @@ extern "C" void app_main(void)
 
     // HAL init
     GetHAL().init();
+
+    boot_chooser();
 
     // BLE voice link (NimBLE peripheral + PTT capture task)
     voice_start();
