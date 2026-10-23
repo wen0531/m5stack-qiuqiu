@@ -1,0 +1,30 @@
+# firmware
+firmware/build/
+firmware/managed_components/
+firmware/components/
+firmware/sdkconfig
+firmware/sdkconfig.old
+firmware/dependencies.lock
+firmware/*.bin
+
+# android
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/*.iml
+android/.idea/
+
+# bridge
+bridge/__pycache__/
+bridge/*.pyc
+bridge/.venv/
+bridge/*.wav
+bridge/*.mp3
+bridge/battery-*.csv
+
+# misc
+.DS_Store
+*.log
+.env
+config.json

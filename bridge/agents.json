@@ -1,0 +1,36 @@
+{
+  "_comment": "Pick any OpenAI-compatible HTTP endpoint, or any CLI agent. See docs/04-config.md",
+  "default": "http-agent",
+  "fallback": [
+    "cli-example"
+  ],
+  "agents": {
+    "http-agent": {
+      "type": "http",
+      "url": "http://127.0.0.1:8642/v1/chat/completions",
+      "provider": "your-provider",
+      "model": "your-model",
+      "api_key_env": "RELAY_API_KEY",
+      "timeout": 40,
+      "aliases": [
+        "小马",
+        "小码",
+        "xiaoma"
+      ],
+      "color": 0
+    },
+    "cli-example": {
+      "type": "cli",
+      "cmd": [
+        "your-agent-cli",
+        "--print"
+      ],
+      "timeout": 120,
+      "aliases": [
+        "小地",
+        "xiaodi"
+      ],
+      "color": 1
+    }
+  }
+}

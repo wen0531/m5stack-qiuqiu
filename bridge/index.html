@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>StopWatch 中继</title>
+<style>
+  body { font-family: system-ui, sans-serif; background:#111; color:#eee; margin:0; padding:24px; }
+  h1 { font-size: 20px; margin: 0 0 16px; }
+  button { width:100%; padding:16px; font-size:18px; margin:8px 0; border-radius:12px; border:0; background:#2d6cdf; color:#fff; }
+  button:disabled { background:#333; color:#777; }
+  #log { white-space:pre-wrap; font-size:13px; background:#000; padding:10px; border-radius:8px; height:200px; overflow:auto; }
+  .ok { color:#5f5 } .err { color:#f77 }
+</style>
+</head>
+<body>
+<h1>StopWatch 中继（Web Bluetooth）</h1>
+<button id="connect">连接手表</button>
+<p id="hint" style="font-size:14px;color:#888;line-height:1.6">
+  连接后即可不用管手机：<br>
+  在手表上打开「球球」→ 按住 A 键说话 → 松开等待回答
+</p>
+<div id="log"></div>
+<script>
+let dlCodec = 1;   // 1 = ADPCM, 2 = Opus (announced by the bridge)
+const SVC = '4f5a0001-1e3b-4d8a-9c7e-5a1b2c3d4e5f';
+const CTRL = '4f5a0002-1e3b-4d8a-9c7e-5a1b2c3d4e5f';
+const AUDIO = '4f5a0003-1e3b-4d8a-9c7e-5a1b2c3d4e5f';
+const STATUS = '4f5a0004-1e3b-4d8a-9c7e-5a1b2c3d4e5f';
+const log = (m, cls='') => { const d=document.getElementById('log'); d.innerHTML += `<span class="${cls}">${m}</span>\n`; d.scrollTop=d.scrollHeight; };
+
+let device, ctrlChar, audioChar, statusChar, ws, talking = false, lastSaved = null, dlSeq = 0;
+let bridgeSession = false;   // a recording session opened by the watch button
+
+async function connectWatch() {
+  try {
+    const dev = await navigator.bluetooth.requestDevice({ filters:[{name:'StopWatch-BLE'}], optionalServices:[SVC] });
+    await attachDevice(dev);
+  } catch (e) { log('连接失败: ' + e, 'err'); }
+}
+
+async function attachDevice(dev) {
+  try {
+    device = dev;
+    const server = await device.gatt.connect();
+    const svc = await server.getPrimaryService(SVC);
+    ctrlChar = await svc.getCharacteristic(CTRL);
+    audioChar = await svc.getCharacteristic(AUDIO);
+    statusChar = await svc.getCharacteristic(STATUS);
+    await statusChar.startNotifications();
+    statusChar.addEventListener('characteristicvaluechanged', ev => {
+      const v = ev.target.value;
+      const b = new Uint8Array(v.buffer, v.byteOffset, v.byteLength);
+      if (!b.length) return;
+      const evCode = b[0];
+      if (evCode === 0x10) { log('⌨️ 手表：开始说话'); onWatchTalkStart(); }
+      else if (evCode === 0x11) { log('⌨️ 手表：说话结束'); onWatchTalkStop(); }
+      else if (evCode === 0x12) log('🔊 手表开始播放');
+      else if (evCode === 0x13) log('✅ 播放结束');
+    });
+    await audioChar.startNotifications();
+    audioChar.addEventListener('characteristicvaluechanged', ev => {
+      const v = ev.target.value;
+      const bytes = new Uint8Array(v.buffer, v.byteOffset, v.byteLength);
+      if (bytes.length > 4 && bytes[2] === 1 && talking && ws && ws.readyState === 1) {
+        ws.send(bytes.slice(4));
+      }
+    });
+    log(`已连接 ${device.name}`, 'ok');
+    document.getElementById('hint').innerHTML = '已就绪：在手表「球球」界面按住 A 键说话。';
+  } catch (e) { log('连接失败: ' + e, 'err'); }
+}
+
+function connectWS() {
+  return new Promise((res, rej) => {
+    ws = new WebSocket(`wss://${location.host}/ws`);
+    ws.binaryType = 'arraybuffer';
+    ws.onopen = () => { log('已连接中继服务', 'ok'); res(); };
+    ws.onerror = e => { log('中继连接错误', 'err'); rej(e); };
+    ws.onclose = () => log('中继连接关闭');
+    ws.onmessage = ev => {
+      if (typeof ev.data === 'string') {
+        const m = JSON.parse(ev.data);
+        if (m.type === 'saved') log(`已保存 ${m.seconds}s -> ${m.file}`, 'ok');
+        if (m.type === 'recording') log('中继开始录音');
+        if (m.type === 'asr') log('识别: ' + m.text, 'ok');
+        if (m.type === 'reply') log('回复: ' + m.text);
+        if (m.type === 'speaking') log('手表播放中…');
+        if (m.type === 'done') log('播放完毕 ✅');
+        if (m.type === 'codec') { dlCodec = m.id | 0; log('下行编码 id=' + dlCodec); }
+      } else {
+        // binary: ADPCM downlink -> watch
+        const b = new Uint8Array(ev.data);
+        if (audioChar && b.length) {
+          const pkt = new Uint8Array(4 + b.length);
+          pkt[0] = dlSeq & 0xFF; pkt[1] = (dlSeq >> 8) & 0xFF; pkt[2] = dlCodec; pkt[3] = 0;
+          dlSeq = (dlSeq + 1) & 0xFFFF;
+          pkt.set(b, 4);
+          audioChar.writeValueWithoutResponse(pkt);
+        }
+      }
+    };
+  });
+}
+
+let wakeLock = null;
+async function requestWakeLock() {
+  try {
+    if ('wakeLock' in navigator && !wakeLock) {
+      wakeLock = await navigator.wakeLock.request('screen');
+    }
+  } catch (e) { /* not fatal */ }
+}
+function releaseWakeLock() {
+  if (wakeLock) { wakeLock.release(); wakeLock = null; }
+}
+
+async function onWatchTalkStart() {
+  requestWakeLock();
+  if (!ws) await connectWS();
+  talking = true;
+  if (ws && ws.readyState === 1) { ws.send(JSON.stringify({cmd:'start'})); bridgeSession = true; }
+}
+
+async function onWatchTalkStop() {
+  talking = false;
+  setTimeout(releaseWakeLock, 60000);   /* keep the page alive until the reply arrives */
+  if (ws && ws.readyState === 1 && bridgeSession) {
+    ws.send(JSON.stringify({cmd:'stop'}));
+    bridgeSession = false;
+  }
+}
+
+/* Reconnect without the picker when Chrome still remembers the permission. */
+async function autoReconnect() {
+  try {
+    if (!navigator.bluetooth.getDevices) { log('此浏览器不支持免点击重连，请点“连接手表”'); return; }
+    const known = await navigator.bluetooth.getDevices();
+    const target = known.find(d => d.name === 'StopWatch-BLE');
+    if (!target) { log('没有已授权的设备，点“连接手表”首次配对'); return; }
+    log('尝试自动重连…');
+    await attachDevice(target);
+    log('自动重连成功 ✅', 'ok');
+  } catch (e) {
+    log('自动重连失败: ' + e + '（点“连接手表”即可）', 'err');
+  }
+}
+
+document.getElementById('connect').onclick = async () => {
+  await connectWatch();
+  if (!ws) await connectWS();
+};
+
+window.addEventListener('load', () => { setTimeout(autoReconnect, 600); });
+
+</script>
+</body>
+</html>

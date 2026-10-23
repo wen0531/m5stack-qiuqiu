@@ -1,0 +1,10 @@
+# WebSocket / HTTP server
+aiohttp>=3.9
+
+# Opus encoding (downlink) — provide libopus.so.0 on Linux:
+#   Debian/Ubuntu: sudo apt install libopus0
+#   (the Python package below is only needed if the system lib is missing)
+# opuslib
+
+# Text to speech (Microsoft Edge voices, free, no API key)
+edge-tts>=6.1
