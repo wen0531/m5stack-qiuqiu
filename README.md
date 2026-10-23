@@ -1,5 +1,7 @@
 # M5Stack Qiuqiu（球球）
 
+> 作者：wen0531 · 2026 · 代码 MIT，球球形象遵循 Emotion Ball 社区许可（非商业）
+
 > **English Summary**
 > 1. M5Stack Qiuqiu turns an M5Stack StopWatch (ESP32-S3) into a wearable voice assistant.
 > 2. The watch captures push-to-talk audio and streams it over BLE to an Android relay app.
@@ -15,6 +17,8 @@
 M5Stack Qiuqiu（球球）把 M5Stack StopWatch 手表改造成一个随身语音助手：在球球界面按住 A 说话，松手后由手机和电脑完成语音识别、Agent 推理与语音合成，回答从手表喇叭播出。手表负责采集、播放和交互，高负载计算全部留在手机与电脑侧。
 
 项目面向自用与二次开发，不是量产消费产品。它解决的是“随手说一句、马上有回答”的交互问题，同时保留原厂 UserDemo 的启动器、表盘、秒表、闹钟等应用。
+
+做这个项目的原因很朴素：想要一个“抬手就能问”的设备，但不想为此换手机、换耳机或再戴一块智能手表。恰好 M5Stack StopWatch 有麦克风、喇叭、圆形 AMOLED 和一颗能跑 BLE 与 Opus 的 ESP32-S3，于是把它改造成只负责“听”和“说”的终端，重活留给手机和电脑。
 
 ## 目录
 
@@ -79,7 +83,7 @@ M5Stack Qiuqiu（球球）把 M5Stack StopWatch 手表改造成一个随身语�
 | 充电指示灯 | USB 插入亮绿灯，拔掉熄灭 | 已实测 |
 | 电池遥测 | 每分钟采样，24 小时环形缓冲，CSV 导出与平均电流分析 | 已实现 |
 | 外网接入 | 可选公网 IPv6 + DDNS；手机在 5G 下可直连 | 可选 |
-| 网页调试页 | Chrome Web Bluetooth 连接手表，不装 App 也能做链路验证 | 可选，仅 ADPCM 组合验证过 |
+| 网页调试页 | Chrome Web Bluetooth 连接手表，不装 App 也能做链路验证；自动跟随桥的 codec 公告 | 可选 |
 
 ### 2.2 明确的边界
 
@@ -406,7 +410,6 @@ App 支持三种地址来源：局域网地址、DDNS 域名、本机回环（�
 ### 9.5 其他限制
 
 - **单手机、单会话。** 桥只保留最后一个连接，多手机同时连接的行为未定义。
-- **B 键名称映射写死。** 桥与 App 对 `hermes` / `codex` / `dsh` 有硬编码映射；改后台名称需要同步修改，否则 B 键循环或配色会异常。
 - **网页调试页只验证过 ADPCM。** 网页端把下行包头写死为 ADPCM，使用 Opus 下行时不要用网页页做播放验证。
 - **iOS 没有原生 App。** 网页页依赖 Chrome 的 Web Bluetooth，iOS Safari 不支持。
 - **电池遥测是内存环。** 1440 条样本存在 PSRAM，重启后清空；跨重启的续航分析需要连续不重启采样。
