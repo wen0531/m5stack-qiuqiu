@@ -86,6 +86,17 @@
       </select>
     </div>
     <div class="row">
+      <label>语音</label>
+      <select id="voice">
+        <option value="idle">待机 idle</option>
+        <option value="listening">聆听 listening</option>
+        <option value="thinking">思考 thinking</option>
+        <option value="speaking">播放 speaking</option>
+        <option value="happy">连上 happy</option>
+        <option value="disconnected">掉线 sleepy</option>
+      </select>
+    </div>
+    <div class="row">
       <label>页面</label>
       <button class="act" id="btnHome">回主页</button>
       <button class="act" id="btnShot">截图</button>
@@ -95,6 +106,7 @@
       <div><span class="dot"></span>连接 <b id="sConn">…</b></div>
       <div>应用 <b id="sApp">—</b></div>
       <div>语言 <b id="sLang">—</b></div>
+      <div>语音 <b id="sVoice">—</b></div>
       <div>帧数 <b id="sFrames">—</b></div>
       <div>循环 <b id="sLoops">—</b></div>
       <div>电量 <b id="sBat">—</b></div>
@@ -164,6 +176,9 @@ screen.addEventListener('pointerup', (e) => {
 /* ---- language ---- */
 $('lang').addEventListener('change', (e) => cmd('lang ' + e.target.value));
 
+/* ---- voice link state (the host build has no radio; see sim/src/sim_voice.h) ---- */
+$('voice').addEventListener('change', (e) => cmd('voice ' + e.target.value));
+
 /* ---- status polling ---- */
 async function poll() {
   try {
@@ -172,6 +187,7 @@ async function poll() {
     $('sConn').textContent = '正常';
     $('sApp').textContent = s.app || '—';
     $('sLang').textContent = s.lang || '—';
+    $('sVoice').textContent = s.voice || '—';
     $('sFrames').textContent = s.frames || '—';
     $('sLoops').textContent = s.loops || '—';
     $('sBat').textContent = (s.level || '?') + '%';
