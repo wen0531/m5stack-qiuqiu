@@ -28,8 +28,22 @@ using mooncake::Mooncake;
 #include "sim_input.h"
 #include "sim_display.h"
 #include "sim_log.h"
+#include "sim_voice.h"
 #include "mem_guard.h"
 #include "sim_clock.h"
+
+/* Same numbering as voice_state_t in main/voice/voice_state.h. */
+static const char* voice_state_name(int state)
+{
+    switch (state) {
+    case 1: return "listening";
+    case 2: return "thinking";
+    case 3: return "happy";
+    case 4: return "sleepy";
+    case 5: return "speaking";
+    default: return "idle";
+    }
+}
 
 static constexpr int W = 466;
 static constexpr int H = 466;
@@ -55,7 +69,7 @@ static std::string current_app_name()
 {
     auto& mc = GetMooncake();
     for (auto& p : mc.getAllAppProps()) {
-        if (mc.getAppCurrentState(p.appID) == mooncake::UIAbility::StateForeground) {
+        if (mc.getAppCurrentState(p.appID) == mooncake::AppAbility::StateRunning) {
             return p.info.name;
         }
     }
@@ -264,13 +278,43 @@ static void handle_command(const std::string& cmd, std::string& reply)
     } else if (cmd == "state") {
         char buf[512];
         std::snprintf(buf, sizeof(buf),
-                      "sim_ms=%u frames=%u loops=%u last_loop_ms=%u lang=%s screen_off=%d app=%s voltage=%u level=%u %s\n",
+                      "sim_ms=%u frames=%u loops=%u last_loop_ms=%u lang=%s screen_off=%d app=%s voice=%s voltage=%u level=%u %s\n",
                       sim_clock::now_ms(), g_frames.load(), g_loops.load(), g_last_loop_ms.load(),
                       i18nCode(i18nLang()),
                       GetHAL().screen_off_active() ? 1 : 0,
                       current_app_name().c_str(),
+                      voice_state_name(sim_voice_get_state()),
                       GetHAL().getBatteryVoltage(), GetHAL().getBatteryLevel(), mem_guard::report());
         reply = buf;
+    } else if (cmd == "voice" || cmd.rfind("voice ", 0) == 0) {
+        /* Inject the voice link state: the host build has no BLE and no voice
+           task, so the assistant UI is otherwise permanently "idle". */
+        std::string arg = cmd.size() > 6 ? cmd.substr(6) : "";
+        while (!arg.empty() && arg.front() == ' ') arg.erase(arg.begin());
+        static const struct { const char* name; int state; } kStates[] = {
+            {"idle", 0}, {"listening", 1}, {"thinking", 2},
+            {"happy", 3}, {"sleepy", 4}, {"speaking", 5},
+        };
+        if (arg.empty()) {
+            reply = std::string("voice=") + voice_state_name(sim_voice_get_state()) + "\n";
+        } else if (arg == "connect" || arg == "connected") {
+            sim_voice_set_connected(true);
+            reply = std::string("ok voice=") + voice_state_name(sim_voice_get_state()) + " connected=1\n";
+        } else if (arg == "disconnect" || arg == "disconnected") {
+            sim_voice_set_connected(false);
+            reply = std::string("ok voice=") + voice_state_name(sim_voice_get_state()) + " connected=0\n";
+        } else {
+            bool hit = false;
+            for (auto& s : kStates) {
+                if (arg == s.name) {
+                    sim_voice_set_state(s.state);
+                    hit = true;
+                    break;
+                }
+            }
+            reply = hit ? std::string("ok voice=") + voice_state_name(sim_voice_get_state()) + "\n"
+                        : std::string("unknown voice state: ") + arg + "\n";
+        }
     } else if (cmd.rfind("log", 0) == 0) {
         int n = 40;
         std::sscanf(cmd.c_str(), "log %d", &n);
@@ -312,13 +356,38 @@ static void handle_command(const std::string& cmd, std::string& reply)
         std::snprintf(buf, sizeof(buf), "clock epoch=%lld\n", (long long)sim_clock::epoch());
         reply = buf;
     } else if (cmd.rfind("open ", 0) == 0) {
-        /* open an app by name: deterministic, bypasses launcher gestures */
+        /* open an app by name: deterministic, bypasses launcher gestures.
+           The launcher template normally closes itself when it opens an app;
+           jumping straight to Mooncake::openApp leaves it running, and its
+           LVGL screen then keeps flushing over apps that paint the panel
+           directly (Qiuqiu). So close everything else before and after. */
         const std::string name = cmd.substr(5);
+        auto& mc = GetMooncake();
+        int target = -1;
+        for (auto& p : mc.getAllAppProps()) {
+            if (p.info.name == name) { target = p.appID; break; }
+        }
         bool ok = false;
-        for (auto& p : GetMooncake().getAllAppProps()) {
-            if (p.info.name == name) {
-                ok = GetMooncake().openApp(p.appID);
-                break;
+        auto close_others = [&]() {
+            for (auto& p : mc.getAllAppProps()) {
+                if (p.appID == target) continue;
+                const auto st = mc.getAppCurrentState(p.appID);
+                if (st == mooncake::AppAbility::StateGoOpen ||
+                    st == mooncake::AppAbility::StateRunning) {
+                    mc.closeApp(p.appID);
+                }
+            }
+        };
+        if (target >= 0) {
+            close_others();
+            sim_advance(60);            /* let the closes take effect */
+            ok = mc.openApp(target);
+            if (ok) {
+                sim_advance(80);        /* let the target's onOpen run */
+                /* with SIM_START_PAUSED the launcher can wake up here, so a
+                   second pass is needed before the screen is really ours */
+                close_others();
+                sim_advance(60);
             }
         }
         reply = ok ? "ok\n" : "not found\n";
@@ -335,6 +404,15 @@ static void handle_command(const std::string& cmd, std::string& reply)
         sim_input::set_key('B', false);
         sim_advance(200);
         reply = "ok\n";
+    } else if (cmd == "apps") {
+        /* every installed app with its lifecycle state (0 null, 1 go-open,
+           2 running, 3 go-close, 4 sleeping) */
+        for (auto& p : GetMooncake().getAllAppProps()) {
+            char line[128];
+            std::snprintf(line, sizeof(line), "%d\t%s\t%d\n", p.appID, p.info.name.c_str(),
+                          (int)GetMooncake().getAppCurrentState(p.appID));
+            reply += line;
+        }
     } else if (cmd == "freeze") {
         g_frozen = true;          /* stop the main loop, used to test stall detection */
         reply = "frozen\n";

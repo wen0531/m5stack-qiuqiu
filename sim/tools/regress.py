@@ -40,6 +40,38 @@ SCENARIOS = {
         ("step 4000", None),
         ("shot", "qiuqiu.png"),
     ],
+    # The host build has no radio, so the voice link state is injected instead
+    # of coming from the BLE service; this is what the assistant phases look
+    # like on the real device.
+    "qiuqiu_listening": [
+        ("open Qiuqiu", None),
+        ("step 4000", None),
+        ("voice listening", None),
+        ("step 1500", None),
+        ("shot", "qiuqiu_listening.png"),
+    ],
+    "qiuqiu_thinking": [
+        ("open Qiuqiu", None),
+        ("step 4000", None),
+        ("voice thinking", None),
+        ("step 1500", None),
+        ("shot", "qiuqiu_thinking.png"),
+    ],
+    "qiuqiu_speaking": [
+        ("open Qiuqiu", None),
+        ("step 4000", None),
+        ("voice speaking", None),
+        ("step 1500", None),
+        ("shot", "qiuqiu_speaking.png"),
+    ],
+    "qiuqiu_sleepy": [
+        ("open Qiuqiu", None),
+        ("step 4000", None),
+        ("voice connected", None),
+        ("voice disconnect", None),
+        ("step 1500", None),
+        ("shot", "qiuqiu_sleepy.png"),
+    ],
     "launcher_ja": [
         ("lang ja", None),
         ("step 1200", None),

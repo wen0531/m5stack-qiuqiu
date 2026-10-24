@@ -62,6 +62,8 @@ python3 tools/simctl dump        # 列出界面上的文字与坐标
 python3 tools/simctl tap_text Settings
 python3 tools/simctl lang zh-Hant
 python3 tools/simctl shot out/a.png
+python3 tools/simctl raw "voice listening"   # 注入语音链路状态（见下）
+python3 tools/simctl raw apps                # 列出应用及其生命周期状态
 ```
 
 批量与监督：
@@ -81,7 +83,12 @@ simctl raw step 1500                          # 推进 1.5 秒模拟时间
 simctl raw "clock 09:41:00"                   # 固定 RTC
 simctl raw "clock date 2026-10-24"
 simctl open Settings                          # 按名字打开应用（不走手势）
+simctl raw "voice speaking"                   # 注入语音状态（idle/listening/thinking/happy/sleepy/speaking）
+simctl raw "voice disconnected"               # 模拟 BLE 掉线（球球转 sleepy）
 ```
+
+`open <名字>` 会像启动器那样先把当前应用关掉再打开目标应用，所以直接绘制面板的球球
+不会被执行器（Launcher）的 LVGL 画面盖住。
 
 回归测试：
 
@@ -90,11 +97,27 @@ python3 tools/regress.py            # 与基线比对
 python3 tools/regress.py --update   # 重建基线
 ```
 
-场景：launcher / watchface / settings / qiuqiu / settings_zh。
+场景：launcher / watchface / settings / qiuqiu / qiuqiu_listening / qiuqiu_thinking /
+qiuqiu_speaking / qiuqiu_sleepy / launcher_ja / launcher_ru / settings_zh。
 每个场景独立进程 + 独立控制端口，连续三次运行哈希一致。
 
-> 已知差异：球球页面在真机上会隐藏启动器，模拟器里 LVGL 透明层仍会显示启动器文字/箭头，
-> 因此球球截图会多出 `AlarmClock` 与左右箭头。
+## 语音状态注入（模拟器特有）
+
+主机版没有 BLE，也不编译 `voice_task.cpp`，所以语音链路状态本来永远是 idle。
+`voice` 命令把状态直接注入 UI 读取的那块（`src/voice_stub.cpp`）：
+
+| 命令 | 效果 |
+|---|---|
+| `voice idle` | 待机（中性脸） |
+| `voice listening` | 按住 A 说话中（聆听脸） |
+| `voice thinking` | 松手等待回答（思考脸） |
+| `voice speaking` | 回答播放中（兴奋脸，帧率也切到活跃档） |
+| `voice happy` | 刚连上 |
+| `voice disconnected` | 掉线（已连过 → 困倦脸；从未连过 → 中性脸） |
+| `voice connect` | 恢复连接 |
+
+它只覆盖「状态 → 表情/帧率」这一段；真实的 PTT 阈值、I2S 采集与 Opus 播放仍只能在
+真机上验证。四个状态已进回归基线，改表情映射会立刻被截图对比抓住。
 
 ## 设备容量约束（重要）
 
@@ -164,5 +187,5 @@ python3 tools/sim/gen_lv_conf.py    # sdkconfig → sim/lv_conf.h
 ## 已知限制
 
 - 设置菜单用 canvas 绘制，`dump`/`tap_text` 看不到文字，只能用坐标操作
-- PTT（语音按下）走 GPIO 直读，模拟器不验证其阈值
+- PTT（语音按下）走 GPIO 直读，模拟器不验证其阈值；语音**状态**可用 `voice` 注入（见上）
 - 音频/IMU/PMIC/OTA 全部是桩
