@@ -5,6 +5,7 @@
  */
 #include "workers.h"
 #include <assets/assets.h>
+#include <i18n/i18n.h>
 #include <mooncake_log.h>
 #include <hal/hal.h>
 #include <cstdint>
@@ -83,8 +84,8 @@ public:
         _ok_button->setBorderWidth(0);
         _ok_button->setShadowWidth(0);
         _ok_button->setBgColor(lv_color_hex(0x4AD78C));
-        _ok_button->label().setText("OK");
-        _ok_button->label().setTextFont(&lv_font_montserrat_28);
+        _ok_button->label().setText(tr("ok"));
+        _ok_button->label().setTextFont(i18nFont());
         _ok_button->label().setTextColor(lv_color_hex(0x0F5831));
         _ok_button->label().align(LV_ALIGN_CENTER, 0, 0);
         _ok_button->onClick().connect([this]() { _save_requested = true; });
@@ -147,9 +148,9 @@ public:
         _panel->setBgOpa(LV_OPA_COVER);
         _panel->removeFlag(LV_OBJ_FLAG_SCROLLABLE);
 
-        createSwitchRow(88, "Button SFX", _current_config.sfxEnabled,
+        createSwitchRow(88, tr("button_sfx"), _current_config.sfxEnabled,
                         [this](bool enabled) { _current_config.sfxEnabled = enabled; });
-        createSwitchRow(195, "Button Vibration", _current_config.vibrateEnabled,
+        createSwitchRow(195, tr("button_vibration"), _current_config.vibrateEnabled,
                         [this](bool enabled) { _current_config.vibrateEnabled = enabled; });
 
         _ok_button = std::make_unique<Button>(_panel->get());
@@ -159,8 +160,8 @@ public:
         _ok_button->setBorderWidth(0);
         _ok_button->setShadowWidth(0);
         _ok_button->setBgColor(lv_color_hex(0x4AD78C));
-        _ok_button->label().setText("OK");
-        _ok_button->label().setTextFont(&lv_font_montserrat_28);
+        _ok_button->label().setText(tr("ok"));
+        _ok_button->label().setTextFont(i18nFont());
         _ok_button->label().setTextColor(lv_color_hex(0x0F5831));
         _ok_button->label().align(LV_ALIGN_CENTER, 0, 0);
         _ok_button->onClick().connect([this]() { _save_requested = true; });
@@ -193,7 +194,7 @@ private:
 
         auto label = std::make_unique<Label>(row->get());
         label->setText(title);
-        label->setTextFont(&lv_font_montserrat_24);
+        label->setTextFont(i18nFont());
         label->setTextColor(lv_color_hex(0xFFFFFF));
         label->align(LV_ALIGN_LEFT_MID, 36, 0);
 

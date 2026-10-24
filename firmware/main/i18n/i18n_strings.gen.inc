@@ -45,3 +45,7 @@
     {"wd_fri", {"FRI", "周五", "週五", "金", "금", "VEN", "FR", "VIE", "ПТ", "VEN"}},
     {"wd_sat", {"SAT", "周六", "週六", "土", "토", "SAM", "SA", "SÁB", "СБ", "SAT"}},
     {"watchface_tips", {"Long press\nto toggle second dot", "长按切换秒点", "長按切換秒點", "長押しで秒点切替", "길게 눌러 초 표시 전환", "Appui long : point des secondes", "Lang drücken: Sekundenpunkt", "Pulsación larga: punto", "Долгое нажатие: точка", "Tene: punctum secundarum"}},
+    {"next", {"Next", "下一步", "下一步", "次へ", "다음", "Suivant", "Weiter", "Siguiente", "Далее", "Porro"}},
+    {"button_sfx", {"Button SFX", "按键音效", "按鍵音效", "ボタン音", "버튼 소리", "Son des touches", "Tastenton", "Sonido de botón", "Звук кнопок", "Sonus bullae"}},
+    {"button_vibration", {"Button Vibration", "按键振动", "按鍵震動", "ボタン振動", "버튼 진동", "Vibration des touches", "Tastenvibration", "Vibración de botón", "Вибрация кнопок", "Vibratio bullae"}},
+    {"switched", {"Switched.", "已切换", "已切換", "切り替えました", "전환됨", "Basculé.", "Gewechselt.", "Cambiado.", "Переключено.", "Mutatum."}},

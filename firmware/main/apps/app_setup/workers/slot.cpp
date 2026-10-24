@@ -5,6 +5,7 @@
 // block the UI for ~10 s and could even starve the task watchdog.
 #include "workers.h"
 #include <mooncake_log.h>
+#include <i18n/i18n.h>
 #include <esp_system.h>
 #include <esp_err.h>
 #include <freertos/FreeRTOS.h>
@@ -64,7 +65,7 @@ public:
 
         _label = std::make_unique<Label>(_panel->get());
         _label->setTextColor(lv_color_hex(0xFFFFFF));
-        _label->setTextFont(&lv_font_montserrat_20);
+        _label->setTextFont(i18nFont());
         _label->setTextAlign(LV_TEXT_ALIGN_CENTER);
         _label->setWidth(400);
         _label->align(LV_ALIGN_CENTER, 0, 0);
@@ -83,9 +84,9 @@ private:
 
 SlotActionWorker::SlotActionWorker(Action action) : _action(action)
 {
-    const char* text = "Cloning firmware...\n(takes ~10 s)";
-    if (action == Action::Switch)  text = "Switching slot...";
-    if (action == Action::Blocked) text = "Other slot already holds\na valid backup.\nNot overwriting it.";
+    const char* text = tr("cloning");
+    if (action == Action::Switch)  text = tr("switching");
+    if (action == Action::Blocked) text = tr("blocked");
     _view = std::make_unique<SlotView>(text);
 }
 
@@ -110,8 +111,8 @@ void SlotActionWorker::update()
     if (g_job.done) {
         _done   = true;
         _result = (g_job.err == ESP_OK)
-                      ? (_action == Action::Clone ? "Cloned. Switch to use it." : "Switched.")
-                      : std::string("Failed: ") + esp_err_to_name(g_job.err);
+                      ? (_action == Action::Clone ? tr("cloned") : tr("switched"))
+                      : std::string(tr("failed")) + ": " + esp_err_to_name(g_job.err);
         _view->set_text(_result);
         _done_at = lv_tick_get();
         mclog::tagInfo(_tag, "%s", _result.c_str());

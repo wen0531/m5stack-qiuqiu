@@ -5,6 +5,7 @@
  */
 #include "workers.h"
 #include <assets/assets.h>
+#include <i18n/i18n.h>
 #include <mooncake_log.h>
 #include <cstdio>
 
@@ -69,8 +70,8 @@ public:
 
         _title_label = std::make_unique<Label>(_panel->get());
         _title_label->align(LV_ALIGN_TOP_MID, 0, 60);
-        _title_label->setText("Set Time");
-        _title_label->setTextFont(&MontserratSemiBold26);
+        _title_label->setText(tr("set_time"));
+        _title_label->setTextFont(i18nFont());
         _title_label->setTextColor(lv_color_hex(0xFFFFFF));
 
         _summary_label = std::make_unique<Label>(_panel->get());
@@ -124,8 +125,8 @@ public:
         _ok_button->setBorderWidth(0);
         _ok_button->setShadowWidth(0);
         _ok_button->setBgColor(lv_color_hex(0x4AD78C));
-        _ok_button->label().setText("OK");
-        _ok_button->label().setTextFont(&lv_font_montserrat_28);
+        _ok_button->label().setText(tr("ok"));
+        _ok_button->label().setTextFont(i18nFont());
         _ok_button->label().setTextColor(lv_color_hex(0x0F5831));
         _ok_button->label().align(LV_ALIGN_CENTER, 0, 0);
         _ok_button->onClick().connect([this]() { _save_requested = true; });
@@ -183,8 +184,8 @@ public:
 
         _title_label = std::make_unique<Label>(_panel->get());
         _title_label->align(LV_ALIGN_TOP_MID, 0, 60);
-        _title_label->setText("Set Date");
-        _title_label->setTextFont(&MontserratSemiBold26);
+        _title_label->setText(tr("set_date"));
+        _title_label->setTextFont(i18nFont());
         _title_label->setTextColor(lv_color_hex(0xFFFFFF));
 
         _summary_label = std::make_unique<Label>(_panel->get());
@@ -239,7 +240,7 @@ public:
         _ok_button->setBorderWidth(0);
         _ok_button->setShadowWidth(0);
         _ok_button->setBgColor(lv_color_hex(0x4AD78C));
-        _ok_button->label().setTextFont(&lv_font_montserrat_28);
+        _ok_button->label().setTextFont(i18nFont());
         _ok_button->label().setTextColor(lv_color_hex(0x0F5831));
         _ok_button->label().align(LV_ALIGN_CENTER, 0, 0);
         _ok_button->onClick().connect([this]() {
@@ -313,12 +314,12 @@ private:
         _day_selector->setHidden(show_year_month);
 
         if (show_year_month) {
-            _ok_button->label().setText("Next");
+            _ok_button->label().setText(tr("next"));
             return;
         }
 
         updateSummaryLabel();
-        _ok_button->label().setText("OK");
+        _ok_button->label().setText(tr("ok"));
     }
 
     std::unique_ptr<Container> _panel;

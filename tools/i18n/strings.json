@@ -588,6 +588,54 @@
       "es": "Pulsación larga: punto",
       "ru": "Долгое нажатие: точка",
       "la": "Tene: punctum secundarum"
+    },
+    "next": {
+      "en": "Next",
+      "zh-Hans": "下一步",
+      "zh-Hant": "下一步",
+      "ja": "次へ",
+      "ko": "다음",
+      "fr": "Suivant",
+      "de": "Weiter",
+      "es": "Siguiente",
+      "ru": "Далее",
+      "la": "Porro"
+    },
+    "button_sfx": {
+      "en": "Button SFX",
+      "zh-Hans": "按键音效",
+      "zh-Hant": "按鍵音效",
+      "ja": "ボタン音",
+      "ko": "버튼 소리",
+      "fr": "Son des touches",
+      "de": "Tastenton",
+      "es": "Sonido de botón",
+      "ru": "Звук кнопок",
+      "la": "Sonus bullae"
+    },
+    "button_vibration": {
+      "en": "Button Vibration",
+      "zh-Hans": "按键振动",
+      "zh-Hant": "按鍵震動",
+      "ja": "ボタン振動",
+      "ko": "버튼 진동",
+      "fr": "Vibration des touches",
+      "de": "Tastenvibration",
+      "es": "Vibración de botón",
+      "ru": "Вибрация кнопок",
+      "la": "Vibratio bullae"
+    },
+    "switched": {
+      "en": "Switched.",
+      "zh-Hans": "已切换",
+      "zh-Hant": "已切換",
+      "ja": "切り替えました",
+      "ko": "전환됨",
+      "fr": "Basculé.",
+      "de": "Gewechselt.",
+      "es": "Cambiado.",
+      "ru": "Переключено.",
+      "la": "Mutatum."
     }
   }
 }
