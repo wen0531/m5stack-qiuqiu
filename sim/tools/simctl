@@ -1,0 +1,76 @@
+#!/usr/bin/env python3
+"""Command line client for the StopWatch simulator control socket."""
+import socket, sys, argparse
+
+PORT = 9123
+
+def send(cmd: str, timeout: float = 10.0) -> str:
+    s = socket.create_connection(("127.0.0.1", PORT), timeout=timeout)
+    s.sendall((cmd + "\n").encode())
+    chunks = []
+    while True:
+        b = s.recv(4096)
+        if not b:
+            break
+        chunks.append(b)
+    s.close()
+    return b"".join(chunks).decode(errors="replace").strip()
+
+def main():
+    ap = argparse.ArgumentParser(prog="simctl", description="control the StopWatch simulator")
+    sub = ap.add_subparsers(dest="cmd", required=True)
+    k = sub.add_parser("key", help="press a key")
+    k.add_argument("name", choices=["A", "B", "a", "b"])
+    k.add_argument("--hold", type=int, default=100, help="hold time in ms")
+    for name in ("down", "up"):
+        d = sub.add_parser(name, help=f"hold/release a key ({name})")
+        d.add_argument("name", choices=["A", "B", "a", "b"])
+    h = sub.add_parser("hold", help="press both keys for N ms (go home)")
+    h.add_argument("ms", type=int, nargs="?", default=600)
+    t = sub.add_parser("tap", help="tap the touchscreen")
+    t.add_argument("x", type=int); t.add_argument("y", type=int)
+    sw = sub.add_parser("swipe", help="drag the touchscreen")
+    sw.add_argument("x1", type=int); sw.add_argument("y1", type=int)
+    sw.add_argument("x2", type=int); sw.add_argument("y2", type=int)
+    sw.add_argument("--ms", type=int, default=300)
+    sh = sub.add_parser("shot", help="write a PNG of the current frame")
+    sh.add_argument("path")
+    sub.add_parser("dump", help="list UI labels with coordinates")
+    tt = sub.add_parser("tap_text", help="tap a widget by its label text")
+    tt.add_argument("text")
+    sub.add_parser("state", help="print simulator state")
+    sub.add_parser("log", help="print the last LVGL log line")
+    lg = sub.add_parser("lang", help="set or cycle the UI language")
+    lg.add_argument("code", nargs="?", default=None)
+    raw = sub.add_parser("raw", help="send a raw control command (testing)")
+    raw.add_argument("text", nargs=argparse.REMAINDER)
+    sub.add_parser("quit", help="stop the simulator")
+    a = ap.parse_args()
+
+    if a.cmd == "key":
+        out = send(f"key {a.name.upper()} {a.hold}")
+    elif a.cmd in ("down", "up"):
+        out = send(f"{a.cmd} {a.name.upper()}")
+    elif a.cmd == "hold":
+        send("down A"); send("down B")
+        import time; time.sleep(a.ms / 1000)
+        send("up A"); send("up B")
+        out = "ok"
+    elif a.cmd == "lang":
+        out = send(f"lang {a.code}" if a.code else "lang")
+    elif a.cmd == "tap_text":
+        out = send(f"tap_text {a.text}")
+    elif a.cmd == "swipe":
+        out = send(f"swipe {a.x1} {a.y1} {a.ms} {a.x2} {a.y2}")
+    elif a.cmd == "tap":
+        out = send(f"tap {a.x} {a.y}")
+    elif a.cmd == "shot":
+        out = send(f"shot {a.path}")
+    elif a.cmd == "raw":
+        out = send(" ".join(a.text))
+    else:
+        out = send(a.cmd)
+    print(out)
+
+if __name__ == "__main__":
+    main()
