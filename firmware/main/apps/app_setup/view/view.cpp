@@ -5,6 +5,7 @@
  */
 #include "view.h"
 #include <assets/assets.h>
+#include <i18n/i18n.h>
 
 using namespace view;
 using namespace uitk::lvgl_cpp;
@@ -58,7 +59,7 @@ void SelectMenuPage::create_selection_label(int y, std::string_view text)
 {
     auto label = std::make_unique<uitk::lvgl_cpp::Label>(*_pannel);
     label->setText(text);
-    label->setTextFont(&MontserratSemiBold26);
+    label->setTextFont(i18nFont());
     label->setTextColor(lv_color_hex(0xFFFFFF));
     label->align(LV_ALIGN_TOP_MID, 0, y);
     _labels.push_back(std::move(label));
@@ -75,7 +76,7 @@ void SelectMenuPage::create_item_button(int y, const MenuItem& item, int section
     btn->setRadius(60);
 
     btn->label().setText(item.label);
-    btn->label().setTextFont(&lv_font_montserrat_28);
+    btn->label().setTextFont(i18nFont());
     btn->label().setTextColor(lv_color_hex(0xFFFFFF));
     btn->label().align(LV_ALIGN_CENTER, 0, 0);
     btn->label().setWidth(294);

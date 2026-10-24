@@ -8,6 +8,7 @@
 #include <mooncake.h>
 #include <mooncake_log.h>
 #include <assets/assets.h>
+#include <i18n/i18n.h>
 
 using namespace mooncake;
 using namespace view;
@@ -35,6 +36,96 @@ AppSetup::AppSetup()
     setAppInfo().icon = (void*)&icon_setup;
 }
 
+
+void AppSetup::buildMenuSections(bool create_page)
+{
+    _menu_sections = {
+        {
+            tr("device"),
+            {
+                {tr("brightness"),
+                 [&]() {
+                     _destroy_menu = true;
+                     _worker       = std::make_unique<BrightnessWorker>();
+                 }},
+                {tr("volume"),
+                 [&]() {
+                     _destroy_menu = true;
+                     _worker       = std::make_unique<VolumeWorker>();
+                 }},
+                {tr("button"),
+                 [&]() {
+                     _destroy_menu = true;
+                     _worker       = std::make_unique<ButtonWorker>();
+                 }},
+                {fmt::format("{}: {}", tr("language"), i18nLangName(i18nLang())),
+                 [&]() {
+                     /* tap to cycle through the available languages */
+                     const int next = ((int)i18nLang() + 1) % (int)Lang::COUNT;
+                     i18nSetLang((Lang)next);
+                     _need_rebuild = true;      /* rebuild in onRunning, not inside the event */
+                 }},
+            },
+        },
+        {
+            tr("time_date"),
+            {
+                {tr("set_time"),
+                 [&]() {
+                     _destroy_menu = true;
+                     _worker       = std::make_unique<SetTimeWorker>();
+                 }},
+                {tr("set_date"),
+                 [&]() {
+                     _destroy_menu = true;
+                     _worker       = std::make_unique<SetDateWorker>();
+                 }},
+            },
+        },
+        {
+            tr("system_slots"),
+            {
+                {slot_status_text(),
+                 [&]() { /* informational only */ }},
+                {tr("switch_slot"),
+                 [&]() {
+                     _destroy_menu = true;
+                     _worker = std::make_unique<SlotActionWorker>(SlotActionWorker::Action::Switch);
+                 }},
+                {tr("clone_slot"),
+                 [&]() {
+                     _destroy_menu = true;
+                     /* Never overwrite the only good backup: cloning is only
+                        allowed into an empty or broken slot. */
+                     if (GetHAL().otaOtherSlotValid()) {
+                         _worker = std::make_unique<SlotActionWorker>(SlotActionWorker::Action::Blocked);
+                     } else {
+                         _worker = std::make_unique<SlotActionWorker>(SlotActionWorker::Action::Clone);
+                     }
+                 }},
+            },
+        },
+        {
+            tr("firmware"),
+            {
+                {fmt::format("{}: {}", tr("version"), common::FirmwareVersion),
+                 [&]() {
+                     _magic_count++;
+                     if (_magic_count >= 10) {
+                         _magic_count  = 0;
+                         _destroy_menu = true;
+                         _worker       = std::make_unique<AboutWorker>();
+                     }
+                 }},
+            },
+        },
+    };
+
+    if (create_page) {
+        _menu_page = std::make_unique<view::SelectMenuPage>(_menu_sections);
+    }
+}
+
 void AppSetup::onCreate()
 {
     mclog::tagInfo(getAppInfo().name, "on create");
@@ -52,84 +143,9 @@ void AppSetup::onOpen()
     _need_warm_reset = false;
     _magic_count     = 0;
 
-    _menu_sections = {
-        {
-            "Device",
-            {
-                {"Brightness",
-                 [&]() {
-                     _destroy_menu = true;
-                     _worker       = std::make_unique<BrightnessWorker>();
-                 }},
-                {"Volume",
-                 [&]() {
-                     _destroy_menu = true;
-                     _worker       = std::make_unique<VolumeWorker>();
-                 }},
-                {"Button",
-                 [&]() {
-                     _destroy_menu = true;
-                     _worker       = std::make_unique<ButtonWorker>();
-                 }},
-            },
-        },
-        {
-            "Time & Date",
-            {
-                {"Set Time",
-                 [&]() {
-                     _destroy_menu = true;
-                     _worker       = std::make_unique<SetTimeWorker>();
-                 }},
-                {"Set Date",
-                 [&]() {
-                     _destroy_menu = true;
-                     _worker       = std::make_unique<SetDateWorker>();
-                 }},
-            },
-        },
-        {
-            "System Slots",
-            {
-                {slot_status_text(),
-                 [&]() { /* informational only */ }},
-                {"Switch to other slot",
-                 [&]() {
-                     _destroy_menu = true;
-                     _worker = std::make_unique<SlotActionWorker>(SlotActionWorker::Action::Switch);
-                 }},
-                {"Clone current to other",
-                 [&]() {
-                     _destroy_menu = true;
-                     /* Never overwrite the only good backup: cloning is only
-                        allowed into an empty or broken slot. */
-                     if (GetHAL().otaOtherSlotValid()) {
-                         _worker = std::make_unique<SlotActionWorker>(SlotActionWorker::Action::Blocked);
-                     } else {
-                         _worker = std::make_unique<SlotActionWorker>(SlotActionWorker::Action::Clone);
-                     }
-                 }},
-            },
-        },
-        {
-            "Firmware",
-            {
-                {fmt::format("Version: {}", common::FirmwareVersion),
-                 [&]() {
-                     _magic_count++;
-                     if (_magic_count >= 10) {
-                         _magic_count  = 0;
-                         _destroy_menu = true;
-                         _worker       = std::make_unique<AboutWorker>();
-                     }
-                 }},
-            },
-        },
-    };
+    buildMenuSections(true);
 
     LvglLockGuard lock;
-
-    _menu_page = std::make_unique<view::SelectMenuPage>(_menu_sections);
 }
 
 void AppSetup::onRunning()
@@ -148,6 +164,12 @@ void AppSetup::onRunning()
     if (_destroy_menu) {
         _menu_page.reset();
         _destroy_menu = false;
+    }
+
+    if (_need_rebuild) {
+        _need_rebuild = false;
+        buildMenuSections(false);          /* new strings for the new language */
+        _menu_page = std::make_unique<view::SelectMenuPage>(_menu_sections);
     }
 
     if (_worker) {

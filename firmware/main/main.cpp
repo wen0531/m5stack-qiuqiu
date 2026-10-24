@@ -12,6 +12,7 @@
 #include <esp_ota_ops.h>
 #include <driver/gpio.h>
 #include <voice/ble_svc.h>
+#include <i18n/i18n.h>
 #include <esp_system.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
@@ -100,6 +101,7 @@ extern "C" void app_main(void)
 
     // HAL init
     GetHAL().init();
+    i18nInit();
 
     boot_chooser();
 
