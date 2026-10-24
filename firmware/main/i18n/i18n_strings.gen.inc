@@ -21,3 +21,8 @@
     {"cloned", {"Cloned. Switch to use it.", "备份完成，切换即可使用", "備份完成，切換即可使用", "複製完了", "복제 완료", "Cloné", "Kopiert", "Clonado", "Скопировано", "Copiatum"}},
     {"blocked", {"Other slot already has a backup", "另一槽已有备份", "另一槽已有備份", "別スロットに予備あり", "다른 슬롯에 백업 있음", "Autre emplacement occupé", "Anderer Slot belegt", "Otra ranura ocupada", "Другой слот занят", "Alius loculus plenus"}},
     {"failed", {"Failed", "失败", "失敗", "失敗", "실패", "Échec", "Fehlgeschlagen", "Falló", "Ошибка", "Defecit"}},
+    {"app_alarm", {"Alarm Clock", "闹钟", "鬧鐘", "アラーム", "알람", "Réveil", "Wecker", "Alarma", "Будильник", "Horologium"}},
+    {"app_watchface", {"Watch Face", "表盘", "錶盤", "文字盤", "워치페이스", "Cadran", "Zifferblatt", "Esfera", "Циферблат", "Facies"}},
+    {"app_stopwatch", {"Stopwatch", "秒表", "碼錶", "ストップウォッチ", "스톱워치", "Chronomètre", "Stoppuhr", "Cronómetro", "Секундомер", "Chronometrum"}},
+    {"app_qiuqiu", {"Qiuqiu", "球球", "球球", "たまちゃん", "공공이", "Qiuqiu", "Qiuqiu", "Qiuqiu", "Qiuqiu", "Qiuqiu"}},
+    {"app_settings", {"Settings", "设置", "設定", "設定", "설정", "Réglages", "Einstellungen", "Ajustes", "Настройки", "Optiones"}},

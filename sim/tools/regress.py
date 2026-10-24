@@ -40,6 +40,16 @@ SCENARIOS = {
         ("step 4000", None),
         ("shot", "qiuqiu.png"),
     ],
+    "launcher_ja": [
+        ("lang ja", None),
+        ("step 1200", None),
+        ("shot", "launcher_ja.png"),
+    ],
+    "launcher_ru": [
+        ("lang ru", None),
+        ("step 1200", None),
+        ("shot", "launcher_ru.png"),
+    ],
     "settings_zh": [
         ("lang zh-Hans", None),
         ("step 800", None),

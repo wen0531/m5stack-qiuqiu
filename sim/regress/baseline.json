@@ -1,6 +1,8 @@
 {
-  "launcher/launcher.png": "79304bedd037ca2039eeaf614a91fdcff26e04a4b045ea65569ab38fda9a721b",
-  "qiuqiu/qiuqiu.png": "0aaa34efaeed0a134fe6fd570229cb0c6165b3afa038c42175cd139c4d75e4bf",
+  "launcher/launcher.png": "db10a9c75d3f8b7742532e8ad9c21444420516d42a0a7803a311c0151b2da325",
+  "launcher_ja/launcher_ja.png": "10e927aa6fa3742ae478f64966954d6fc532bd6696176a09f88f09d4e3192adf",
+  "launcher_ru/launcher_ru.png": "c981a577cd54e73cadf4903aee3a4be7f55013c81651e0c785547f0e9056d9b9",
+  "qiuqiu/qiuqiu.png": "3233bbda7f6c31ca1470ec2edf8c34739d1316e0d357b1eec811048b3c86af89",
   "settings/settings.png": "7a749540fc6a3c7a874c2a7a1482b41b34c4d75e16ba90a10acf9a332c6087e1",
   "settings_zh/settings_zh.png": "b554699cea2881374662bbb35d17b15778c51f02da30ead8ef4941063c19d85e",
   "watchface/watchface.png": "437d0f5964d6b0ddfebf9eb8a94226aa05a3548d5aaf2701675e602dc862b248"

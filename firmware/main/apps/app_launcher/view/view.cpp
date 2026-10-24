@@ -6,6 +6,7 @@
 #include "view.h"
 #include <mooncake_log.h>
 #include <assets/assets.h>
+#include <i18n/i18n.h>
 #include <functional>
 #include <hal/hal.h>
 #include <cstdint>
@@ -123,12 +124,21 @@ public:
         // Create floating label
         _label = std::make_unique<Label>(parent);
         _label->setTextColor(lv_color_hex(0xFFFFFF));
-        _label->setTextFont(&MontserratSemiBold26);
+        _label->setTextFont(i18nFont());
         _label->setAlign(LV_ALIGN_CENTER);
         _label->addFlag(LV_OBJ_FLAG_FLOATING);
         _label->setOpa(255);
 
         jumpTo(0);
+    }
+
+    void refreshTexts(const std::vector<std::string>& texts, const lv_font_t* font)
+    {
+        _icon_label_texts = texts;
+        _label->setTextFont(font);
+        if (_current_index >= 0 && _current_index < _icon_label_texts.size()) {
+            _label->setText(_icon_label_texts[_current_index]);
+        }
     }
 
     void jumpTo(int index)
@@ -199,6 +209,8 @@ static constexpr int _center_copy_index = 2;
 static int _last_clicked_icon_pos_x = -1;
 static std::unique_ptr<PageIndicator> _page_indicator;
 static std::unique_ptr<DynamicIconLabel> _dynamic_icon_label;
+static std::vector<std::string>           _english_app_names;
+static Lang                               _label_lang = Lang::EN;
 
 LauncherView::~LauncherView()
 {
@@ -260,7 +272,8 @@ void LauncherView::init(std::vector<mooncake::AppProps_t> appPorps)
             });
 
             // Keep track of data for helpers
-            icon_label_texts.push_back(props.info.name);
+            icon_label_texts.push_back(i18nAppName(props.info.name.c_str()));
+            _english_app_names.push_back(props.info.name);
 
             uint32_t color = 0xDADADA;
             if (props.info.userData != nullptr) {
@@ -423,6 +436,12 @@ void LauncherView::handle_state_normal()
     // mclog::tagInfo(_tag, "scroll x: {}", scroll_x);
 
     _page_indicator->update(scroll_x);
+    if (_label_lang != i18nLang() && _dynamic_icon_label) {
+        _label_lang = i18nLang();
+        std::vector<std::string> texts;
+        for (const auto& n : _english_app_names) texts.push_back(i18nAppName(n.c_str()));
+        if (!texts.empty()) _dynamic_icon_label->refreshTexts(texts, i18nFont());
+    }
     _dynamic_icon_label->update(scroll_x);
 
     if (_clock) {

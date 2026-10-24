@@ -10,6 +10,8 @@ void i18nInit();                       /* load the saved language */
 Lang i18nLang();
 void i18nSetLang(Lang lang);           /* persists to settings */
 const char* i18nLangName(Lang lang);
-const char* tr(const char* key);       /* current language text */
+const char* i18nCode(Lang lang);   /* stable code, e.g. "zh-Hans" */
+const char* tr(const char* key);
+const char* i18nAppName(const char* english_name);   /* launcher app titles */       /* current language text */
 const lv_font_t* i18nFont();           /* font covering the current language */
 const lv_font_t* i18nFontFor(Lang lang);

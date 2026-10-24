@@ -76,6 +76,12 @@ const char* i18nLangName(Lang lang)
     return names[(int)lang];
 }
 
+const char* i18nCode(Lang lang)
+{
+    if (lang < Lang::EN || lang >= Lang::COUNT) return "en";
+    return kCodes[(int)lang];
+}
+
 const char* tr(const char* key)
 {
     for (int i = 0; i < kCount; ++i) {
@@ -84,6 +90,23 @@ const char* tr(const char* key)
         }
     }
     return key;   /* untranslated keys fall back to the key itself */
+}
+
+const char* i18nAppName(const char* english_name)
+{
+    /* mooncake keeps the app name in English (logs, control API); only the
+       launcher label is localised */
+    static const struct { const char* name; const char* key; } map[] = {
+        {"AlarmClock", "app_alarm"},
+        {"WatchFace",  "app_watchface"},
+        {"Stopwatch",  "app_stopwatch"},
+        {"Qiuqiu",     "app_qiuqiu"},
+        {"Settings",   "app_settings"},
+    };
+    for (const auto& m : map) {
+        if (std::strcmp(m.name, english_name) == 0) return tr(m.key);
+    }
+    return english_name;
 }
 
 const lv_font_t* i18nFont()
