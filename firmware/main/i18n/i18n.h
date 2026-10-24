@@ -4,9 +4,7 @@
 #pragma once
 #include <lvgl.h>
 
-enum class Lang : int {
-    EN = 0, ZH_HANS, ZH_HANT, JA, KO, FR, DE, ES, RU, LA, COUNT
-};
+#include "i18n_gen.h"
 
 void i18nInit();                       /* load the saved language */
 Lang i18nLang();
