@@ -143,9 +143,9 @@ void AppSetup::onOpen()
     _need_warm_reset = false;
     _magic_count     = 0;
 
-    buildMenuSections(true);
-
     LvglLockGuard lock;
+
+    buildMenuSections(true);
 }
 
 void AppSetup::onRunning()
@@ -168,6 +168,7 @@ void AppSetup::onRunning()
 
     if (_need_rebuild) {
         _need_rebuild = false;
+        _menu_page.reset();                /* free the old page before building */
         buildMenuSections(false);          /* new strings for the new language */
         _menu_page = std::make_unique<view::SelectMenuPage>(_menu_sections);
     }

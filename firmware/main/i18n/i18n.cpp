@@ -70,6 +70,7 @@ Lang i18nLang()
 void i18nSetLang(Lang lang)
 {
     if (lang < Lang::EN || lang >= Lang::COUNT) return;
+    if (lang == g_lang) return;              /* nothing to do, no NVS write */
     g_lang = lang;
     Settings settings(std::string(kSettingsNs), true);
     settings.SetInt("lang", (int)lang);

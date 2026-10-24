@@ -61,14 +61,19 @@ def main() -> int:
         chars = set()
         for entry in data["strings"].values():
             chars.update(entry.get(lang, ""))
-        chars.update("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz .:%&-()")
-        symbols = "".join(sorted(c for c in chars if c.strip()))
+        # the language selector shows the language's own name, so it must be in the font too
+        chars.update(data.get("lang_names", {}).get(lang, ""))
+        # base symbols used by formatting / status lines (space included - a
+        # font without U+0020 renders every word as one long placeholder run)
+        chars.update(" 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz.:%&-()+/,!?\"'")
+        # only strip control characters, never the space
+        symbols = "".join(sorted(c for c in chars if c not in "\n\r\t"))
 
         getter = FONTS.get(lang)
         font = getter() if getter else ""
         if not font or not pathlib.Path(font).exists():
-            print(f"skip {lang}: no font file")
-            continue
+            print(f"ERROR: no font file for {lang}")
+            return 1
 
         out_c = OUT / f"i18n_{symbol(lang)}.c"
         cmd = ["npx", "--yes", "lv_font_conv@1.5.2",
@@ -81,6 +86,14 @@ def main() -> int:
         if r.returncode != 0:
             print(r.stderr[-400:])
             return 1
+        missing = [ln for ln in r.stderr.splitlines() if "not found" in ln.lower()]
+        if missing:
+            print(f"ERROR: {lang}: " + "; ".join(missing[:5]))
+            return 1
+        # strip absolute build paths from the generated comment header
+        text = out_c.read_text()
+        text = text.replace(str(ROOT) + "/", "")
+        out_c.write_text(text)
         header.append(f"LV_FONT_DECLARE(i18n_{symbol(lang)});")
 
     (OUT / "i18n_fonts.h").write_text("\n".join(header) + "\n")
