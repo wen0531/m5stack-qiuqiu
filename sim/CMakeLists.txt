@@ -25,6 +25,7 @@ add_executable(stopwatch_sim
     src/png.cpp
     src/sim_display.cpp
     src/sim_log.cpp
+    src/mem_guard.cpp
     src/voice_stub.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/stubs/button/Button_Class.cpp
     ${FW}/main/i18n/i18n.cpp
@@ -52,4 +53,7 @@ target_compile_definitions(stopwatch_sim PRIVATE LV_CONF_INCLUDE_SIMPLE)
 set_source_files_properties(${APP_SRC} ${UITK_SRC} ${MC_SRC} src/sim_main.cpp src/hal_sim.cpp
     PROPERTIES COMPILE_OPTIONS "-include;fmt/format.h")
 target_compile_options(stopwatch_sim PRIVATE -w)
+# route libc allocation through the device-budget guard
+target_link_options(stopwatch_sim PRIVATE
+    -Wl,--wrap=malloc -Wl,--wrap=calloc -Wl,--wrap=realloc -Wl,--wrap=free)
 target_link_libraries(stopwatch_sim PRIVATE z m pthread fmt)

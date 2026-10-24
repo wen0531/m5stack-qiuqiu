@@ -28,6 +28,7 @@ using mooncake::Mooncake;
 #include "sim_input.h"
 #include "sim_display.h"
 #include "sim_log.h"
+#include "mem_guard.h"
 
 static constexpr int W = 466;
 static constexpr int H = 466;
@@ -177,6 +178,20 @@ static void handle_command(const std::string& cmd, std::string& reply)
             }
         }
         if (!hit) reply = "not found\n";
+    } else if (cmd.rfind("alloc", 0) == 0) {
+        /* testing hook: hold N KB of PSRAM (or internal) to exercise the budget */
+        int kb = 1024;
+        char pool[16] = "psram";
+        std::sscanf(cmd.c_str(), "alloc %d %15s", &kb, pool);
+        static std::vector<void*> held;
+        const bool internal = std::strcmp(pool, "internal") == 0;
+        held.push_back(mem_guard::alloc(internal ? mem_guard::POOL_INTERNAL : mem_guard::POOL_PSRAM,
+                                        (size_t)kb * 1024));
+        char buf[128];
+        std::snprintf(buf, sizeof(buf), "allocated %d KB from %s\n", kb, internal ? "internal" : "psram");
+        reply = buf;
+    } else if (cmd == "memfree") {
+        reply = std::string(mem_guard::report()) + "\n";
     } else if (cmd == "frame") {
         std::vector<unsigned char> png;
         sim_display::lock();
@@ -217,12 +232,12 @@ static void handle_command(const std::string& cmd, std::string& reply)
     } else if (cmd == "state") {
         char buf[512];
         std::snprintf(buf, sizeof(buf),
-                      "frames=%u loops=%u last_loop_ms=%u lang=%s screen_off=%d app=%s voltage=%u level=%u\n",
+                      "frames=%u loops=%u last_loop_ms=%u lang=%s screen_off=%d app=%s voltage=%u level=%u %s\n",
                       g_frames.load(), g_loops.load(), g_last_loop_ms.load(),
                       i18nCode(i18nLang()),
                       GetHAL().screen_off_active() ? 1 : 0,
                       current_app_name().c_str(),
-                      GetHAL().getBatteryVoltage(), GetHAL().getBatteryLevel());
+                      GetHAL().getBatteryVoltage(), GetHAL().getBatteryLevel(), mem_guard::report());
         reply = buf;
     } else if (cmd.rfind("log", 0) == 0) {
         int n = 40;
@@ -291,6 +306,7 @@ static void control_server()
 /* ------------------------------------------------------------------- main */
 int main(int argc, char** argv)
 {
+    mem_guard::init();
     lv_init();
     lv_log_register_print_cb(log_cb);
 

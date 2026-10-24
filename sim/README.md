@@ -71,6 +71,58 @@ python3 tools/langsweep.py       # 10 种语言各截一张
 python3 tools/simrun.py "shot out/x.png" "raw crash"   # 崩溃检测
 ```
 
+## 设备容量约束（重要）
+
+PC 的内存和 Flash 远大于手表，不加限制就会跑出"真机根本装不下"的固件。
+模拟器因此模拟了手表的预算：
+
+| 资源 | 手表 | 模拟器行为 |
+|---|---|---|
+| **内部 RAM** | ~512 KB | 超限 **立即 abort** 并打印 `[mem] OUT OF internal RAM ...` |
+| **PSRAM** | 8 MB | 超限 **立即 abort** 并打印 `[mem] OUT OF PSRAM ...` |
+| 分配策略 | ≤4 KB 走内部 RAM，>4 KB 走 PSRAM | 相同（`CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=4096`） |
+| **Flash 应用槽** | 4.94 MB | `tools/check_size.py` 对照分区表检查，>90% 警告，超出报错 |
+
+预算可通过环境变量调整：
+
+```bash
+SIM_INTERNAL_KB=512 SIM_PSRAM_MB=8 ./build/stopwatch_sim
+```
+
+实测：
+
+```
+起始:           内部 RAM 37/512 KB     PSRAM 1272/8192 KB
+分配 4 MB PSRAM:  → PSRAM 5368/8192 KB
+再分配 6 MB:      → [mem] OUT OF PSRAM: tried 6144 KB, budget 8192 KB, in use 5368 KB  → abort
+内部申请 600 KB:  → [mem] OUT OF internal RAM: tried 600 KB, budget 512 KB              → abort
+```
+
+超限的 abort 会被监督进程识别为崩溃（SIGABRT），网页上也会显示两条容量条。
+
+固件体积检查：
+
+```bash
+python3 tools/check_size.py
+# app image : 3,392,480 bytes (3.24 MB)
+# slot ota_0: 4.94 MB, free 1743 KB
+# OK: fits comfortably
+```
+
+## LVGL 配置与设备对齐
+
+设备用 `CONFIG_LV_CONF_SKIP=y` + Kconfig 生成 LVGL 配置，主机没法用 Kconfig。
+因此 `sim/lv_conf.h` 由脚本从 `sdkconfig` 生成：
+
+```bash
+python3 tools/sim/gen_lv_conf.py    # sdkconfig → sim/lv_conf.h
+```
+
+生成时只覆盖 PC 必须不同的项（内存池大小、日志开关、OS 层、SIMD 选择），
+其余 280+ 个选项（控件、字体、绘制、断言）与设备一致。
+
+> 改了任何 `CONFIG_LV_*` 选项后要重新生成，否则渲染细节会和设备不一致。
+
 ## 架构要点
 
 **统一虚拟面板**：LVGL 的 flush 回调和球球 App 的 `M5GFX::writePixels` 都写进同一块

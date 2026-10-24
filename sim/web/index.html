@@ -35,6 +35,12 @@
   .status { display:grid; grid-template-columns:1fr 1fr; gap:6px 10px; font-size:12px; color:var(--dim); margin:12px 0; }
   .status b { color:var(--text); font-weight:500; }
   .dot { display:inline-block; width:7px; height:7px; border-radius:50%; background:var(--ok); margin-right:5px; }
+  .bars { margin: 10px 0 4px; display: flex; flex-direction: column; gap: 7px; }
+  .bar { font-size: 11px; color: var(--dim); }
+  .bar .track { height: 6px; background: #0d0f11; border: 1px solid var(--line); border-radius: 4px; margin-top: 3px; overflow: hidden; }
+  .bar .fill { height: 100%; width: 0%; background: var(--accent); transition: width .3s; }
+  .bar .fill.warn { background: #ffb300; }
+  .bar .fill.crit { background: #ff5252; }
   .log { background:#0d0f11; border:1px solid var(--line); border-radius:10px; padding:9px;
          font-family: ui-monospace, Menlo, Consolas, monospace; font-size:11px; color:#9aa3ad;
          height:130px; overflow:auto; white-space:pre-wrap; }
@@ -92,6 +98,12 @@
       <div>帧数 <b id="sFrames">—</b></div>
       <div>循环 <b id="sLoops">—</b></div>
       <div>电量 <b id="sBat">—</b></div>
+    </div>
+
+    <h2>设备容量</h2>
+    <div class="bars" id="memBars">
+      <div class="bar"><span id="memIntLabel">内部 RAM</span><div class="track"><div class="fill" id="memIntFill"></div></div></div>
+      <div class="bar"><span id="memPsLabel">PSRAM</span><div class="track"><div class="fill" id="memPsFill"></div></div></div>
     </div>
 
     <h2>日志</h2>
@@ -163,6 +175,15 @@ async function poll() {
     $('sFrames').textContent = s.frames || '—';
     $('sLoops').textContent = s.loops || '—';
     $('sBat').textContent = (s.level || '?') + '%';
+    const setBar = (labelId, fillId, usedKb, limitKb, name) => {
+      const pct = limitKb ? Math.min(100, usedKb * 100 / limitKb) : 0;
+      $(labelId).textContent = `${name}  ${usedKb} / ${limitKb} KB (${pct.toFixed(0)}%)`;
+      const f = $(fillId);
+      f.style.width = pct + '%';
+      f.className = 'fill' + (pct > 90 ? ' crit' : pct > 70 ? ' warn' : '');
+    };
+    setBar('memIntLabel', 'memIntFill', +s.mem_internal_kb || 0, +s.mem_internal_limit_kb || 0, '内部 RAM');
+    setBar('memPsLabel', 'memPsFill', +s.mem_psram_kb || 0, +s.mem_psram_limit_kb || 0, 'PSRAM');
     const lg = await fetch('/log');
     const t = await lg.text();
     if (t.trim()) { $('log').textContent = t; $('log').scrollTop = $('log').scrollHeight; }
