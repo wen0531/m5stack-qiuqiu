@@ -5,6 +5,7 @@
  */
 #include "view.h"
 #include <assets/assets.h>
+#include <i18n/i18n.h>
 #include <mooncake_log.h>
 #include <cstdio>
 
@@ -59,8 +60,8 @@ void DeleteAlarmDialog::init(lv_obj_t* parent)
     _panel->moveForeground();
 
     _label = std::make_unique<Label>(_panel->get());
-    _label->setText("Delete this alarm?");
-    _label->setTextFont(&MontserratSemiBold26);
+    _label->setText(tr("confirm_delete"));
+    _label->setTextFont(i18nFont());
     _label->setTextColor(lv_color_hex(_label_color));
     _label->align(LV_ALIGN_TOP_LEFT, 49, 40);
 
@@ -71,8 +72,8 @@ void DeleteAlarmDialog::init(lv_obj_t* parent)
     _confirm_button->setBorderWidth(0);
     _confirm_button->setShadowWidth(0);
     _confirm_button->setBgColor(lv_color_hex(_dialog_delete_color));
-    _confirm_button->label().setText("Delete");
-    _confirm_button->label().setTextFont(&lv_font_montserrat_24);
+    _confirm_button->label().setText(tr("delete"));
+    _confirm_button->label().setTextFont(i18nFont());
     _confirm_button->label().setTextColor(lv_color_hex(_label_color));
     _confirm_button->label().align(LV_ALIGN_CENTER, 0, 0);
     _confirm_button->onClick().connect([this]() { _is_confirmed = true; });
@@ -84,8 +85,8 @@ void DeleteAlarmDialog::init(lv_obj_t* parent)
     _cancel_button->setBorderWidth(0);
     _cancel_button->setShadowWidth(0);
     _cancel_button->setBgColor(lv_color_hex(_dialog_cancel_color));
-    _cancel_button->label().setText("Cancel");
-    _cancel_button->label().setTextFont(&lv_font_montserrat_24);
+    _cancel_button->label().setText(tr("cancel"));
+    _cancel_button->label().setTextFont(i18nFont());
     _cancel_button->label().setTextColor(lv_color_hex(_label_color));
     _cancel_button->label().align(LV_ALIGN_CENTER, 0, 0);
     _cancel_button->onClick().connect([this]() { _is_cancelled = true; });
@@ -161,8 +162,8 @@ void AlarmListView::rebuild()
 void AlarmListView::createTitle(int y)
 {
     _title_label = std::make_unique<Label>(_panel->get());
-    _title_label->setText("Alarms");
-    _title_label->setTextFont(&MontserratSemiBold26);
+    _title_label->setText(tr("alarm_list"));
+    _title_label->setTextFont(i18nFont());
     _title_label->setTextColor(lv_color_hex(_label_color));
     _title_label->align(LV_ALIGN_TOP_MID, 0, y);
 }
@@ -218,8 +219,8 @@ void AlarmListView::createAddButton(int y)
     _add_button->setBorderWidth(0);
     _add_button->setShadowWidth(0);
     _add_button->setRadius(60);
-    _add_button->label().setText("Add");
-    _add_button->label().setTextFont(&lv_font_montserrat_28);
+    _add_button->label().setText(tr("add"));
+    _add_button->label().setTextFont(i18nFont());
     _add_button->label().setTextColor(lv_color_hex(_label_color));
     _add_button->label().align(LV_ALIGN_CENTER, 0, 0);
     _add_button->label().setWidth(294);

@@ -97,9 +97,13 @@ python3 tools/regress.py            # 与基线比对
 python3 tools/regress.py --update   # 重建基线
 ```
 
-场景：launcher / watchface / settings / qiuqiu / qiuqiu_listening / qiuqiu_thinking /
-qiuqiu_speaking / qiuqiu_sleepy / launcher_ja / launcher_ru / settings_zh。
+场景（15 个）：launcher / watchface / settings / qiuqiu / qiuqiu_listening / qiuqiu_thinking /
+qiuqiu_speaking / qiuqiu_sleepy / launcher_ja / launcher_ru / settings_zh /
+alarm_zh / stopwatch_zh / watchface_zh / alarm_ru。
 每个场景独立进程 + 独立控制端口，连续三次运行哈希一致。
+
+> 跑回归前先停掉网页版用的模拟器：它占用 9123，正好是第一个场景的端口，
+> 旧进程会让基线悄悄录到另一个版本。脚本现在遇到端口占用会直接报错。
 
 ## 语音状态注入（模拟器特有）
 

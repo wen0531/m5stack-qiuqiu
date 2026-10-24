@@ -6,6 +6,7 @@
 #include "watch_face.h"
 #include <assets/assets.h>
 #include <hal/hal.h>
+#include <i18n/i18n.h>
 #include <array>
 #include <cmath>
 #include <ctime>
@@ -33,8 +34,9 @@ struct Theme {
     uint32_t dateColor;
 };
 
-constexpr std::array<const char*, 7> _weekday_map = {
-    "SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT",
+/* i18n keys, not literal abbreviations: the weekday follows the UI language. */
+constexpr std::array<const char*, 7> _weekday_keys = {
+    "wd_sun", "wd_mon", "wd_tue", "wd_wed", "wd_thu", "wd_fri", "wd_sat",
 };
 
 constexpr std::array<Theme, 10> _themes = {
@@ -122,16 +124,16 @@ void WatchFaceSimple::onCreate(lv_obj_t* parent)
 
     _date_label = std::make_unique<Label>(parent);
     _date_label->align(LV_ALIGN_CENTER, 0, _date_y_offset);
-    _date_label->setTextFont(&lv_font_montserrat_24);
+    _date_label->setTextFont(i18nFont());
     _date_label->setBgOpa(LV_OPA_TRANSP);
     _date_label->removeFlag(LV_OBJ_FLAG_SCROLLABLE);
 
     _tips_label = std::make_unique<Label>(parent);
     _tips_label->align(LV_ALIGN_CENTER, 0, _tips_y_offset);
-    _tips_label->setTextFont(&lv_font_montserrat_20);
+    _tips_label->setTextFont(i18nFont());
     _tips_label->setBgOpa(LV_OPA_TRANSP);
     _tips_label->removeFlag(LV_OBJ_FLAG_SCROLLABLE);
-    _tips_label->setText("Long press\nto toggle second dot");
+    _tips_label->setText(tr("watchface_tips"));
     _tips_label->setTextColor(lv_color_hex(0xEAE48D));
     _tips_label->setTextAlign(LV_TEXT_ALIGN_CENTER);
 
@@ -210,10 +212,10 @@ void WatchFaceSimple::update()
         _time_label->setText(buffer);
     }
 
-    if (_date_label && local_time->tm_wday >= 0 && local_time->tm_wday < static_cast<int>(_weekday_map.size())) {
+    if (_date_label && local_time->tm_wday >= 0 && local_time->tm_wday < static_cast<int>(_weekday_keys.size())) {
         char buffer[32] = {};
         std::snprintf(buffer, sizeof(buffer), "%d/%d/%d %s", local_time->tm_year + 1900, local_time->tm_mon + 1,
-                      local_time->tm_mday, _weekday_map[local_time->tm_wday]);
+                      local_time->tm_mday, tr(_weekday_keys[local_time->tm_wday]));
         _date_label->setText(buffer);
     }
 

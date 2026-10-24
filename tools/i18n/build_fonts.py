@@ -73,9 +73,15 @@ def emit_cpp(data, langs) -> None:
             enum_lines.append(f"LV_FONT_DECLARE(i18n_{symbol(l)});")
     gen_h.write_text("\n".join(enum_lines) + "\n")
 
+    def c_escape(text: str) -> str:
+        """A translation is emitted as a C string literal, so quotes, backslashes
+        and line breaks must be escaped (a multi-line hint is legal in JSON)."""
+        return (text.replace("\\", "\\\\").replace('"', '\\"')
+                    .replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t"))
+
     entries = []
     for key, tr in data["strings"].items():
-        vals = ", ".join('"' + tr.get(l, tr.get("en", "")).replace('"', '\\"') + '"' for l in langs)
+        vals = ", ".join('"' + c_escape(tr.get(l, tr.get("en", ""))) + '"' for l in langs)
         entries.append(f'    {{"{key}", {{{vals}}}}},')
     gen_inc.write_text("\n".join(entries) + "\n")
 

@@ -5,6 +5,7 @@
  */
 #include "view.h"
 #include <assets/assets.h>
+#include <i18n/i18n.h>
 #include <mooncake_log.h>
 #include <hal/hal.h>
 #include <cstdint>
@@ -14,30 +15,32 @@ using namespace view;
 using namespace uitk;
 using namespace uitk::lvgl_cpp;
 
+/* i18n keys, resolved when the state is applied: a language change while the
+   app is open must not keep showing the previous language. */
 static const StopwatchView::WidigetState_t _widget_state_stopped = {
     0xB3CDFF,
     0x9CF1B6,
-    "LAP",
-    "START",
+    "sw_lap",
+    "sw_start",
 };
 
 static const StopwatchView::WidigetState_t _widget_state_running = {
     0xB3CDFF,
     0xFF9EAB,
-    "LAP",
-    "STOP",
+    "sw_lap",
+    "sw_stop",
 };
 
 static const StopwatchView::WidigetState_t _widget_state_paused = {
     0xB3CDFF,
     0x9CF1B6,
-    "RESET",
-    "START",
+    "sw_reset",
+    "sw_start",
 };
 
-static const int _btn_left_x  = -72;
+static const int _btn_left_x  = -82;
 static const int _btn_left_y  = -143;
-static const int _btn_right_x = 72;
+static const int _btn_right_x = 82;
 static const int _btn_right_y = -143;
 
 static const uint32_t _color_status_bar_clock = 0xCDEBF9;
@@ -51,9 +54,9 @@ static void apply_button_style(Button* button)
 {
     button->setRadius(72 / 2 - 2);
     button->setBorderWidth(0);
-    button->setSize(105, 72);
+    button->setSize(128, 72);
     button->setAlign(LV_ALIGN_CENTER);
-    button->label().setTextFont(&lv_font_maple_mono_medium_24);
+    button->label().setTextFont(i18nFont());
 }
 
 void StopwatchView::init(lv_obj_t* parent)
@@ -225,9 +228,9 @@ void StopwatchView::update_widget_state()
             LapLabel_t lap_label;
 
             lap_label.title = std::make_unique<Label>(_panel_laps->get());
-            lap_label.title->setTextFont(&lv_font_maple_mono_medium_28);
+            lap_label.title->setTextFont(i18nFont());
             lap_label.title->setTextColor(lv_color_hex(_color_elapsed_time));
-            lap_label.title->setText(fmt::format("LAP {}", i + 1));
+            lap_label.title->setText(fmt::format("{} {}", tr("sw_lap"), i + 1));
 
             lap_label.time = std::make_unique<Label>(_panel_laps->get());
             lap_label.time->setTextFont(&lv_font_maple_mono_medium_28);
@@ -249,8 +252,10 @@ void StopwatchView::apply_widget_state(const WidigetState_t& state)
 {
     _btn_left->setBgColor(lv_color_hex(state.btnLeftColor));
     _btn_right->setBgColor(lv_color_hex(state.btnRightColor));
-    _btn_left->label().setText(state.btnLeftText.c_str());
-    _btn_right->label().setText(state.btnRightText.c_str());
+    _btn_left->label().setText(tr(state.btnLeftText.c_str()));
+    _btn_right->label().setText(tr(state.btnRightText.c_str()));
+    _btn_left->label().setTextFont(i18nFont());
+    _btn_right->label().setTextFont(i18nFont());
     _btn_left->label().setTextColor(lv_color_hex(color::blend_in_difference(state.btnLeftColor, 0x858585).toHex()));
     _btn_right->label().setTextColor(lv_color_hex(color::blend_in_difference(state.btnRightColor, 0x858585).toHex()));
 }

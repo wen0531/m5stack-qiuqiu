@@ -6,6 +6,7 @@
 #include "watch_face.h"
 #include <assets/assets.h>
 #include <hal/hal.h>
+#include <i18n/i18n.h>
 #include <array>
 #include <cmath>
 #include <ctime>
@@ -46,8 +47,9 @@ constexpr uint32_t _minute_tick_color = 0x454545;
 constexpr uint32_t _text_color        = 0xFFFFFF;
 constexpr int _display_mode_count     = 3;
 
-constexpr std::array<const char*, 7> _weekday_map = {
-    "SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT",
+/* i18n keys, not literal abbreviations: the weekday follows the UI language. */
+constexpr std::array<const char*, 7> _weekday_keys = {
+    "wd_sun", "wd_mon", "wd_tue", "wd_wed", "wd_thu", "wd_fri", "wd_sat",
 };
 
 void setup_hand(Image& hand, const lv_image_dsc_t& image, int width, int height, int anchor_offset)
@@ -135,7 +137,7 @@ void WatchFaceClassic::onCreate(lv_obj_t* parent)
 
     _weekday_label = std::make_unique<Label>(parent);
     _weekday_label->align(LV_ALIGN_CENTER, 0, _week_label_y_offset);
-    _weekday_label->setTextFont(&lv_font_maple_mono_medium_24);
+    _weekday_label->setTextFont(i18nFont());
     _weekday_label->setTextColor(lv_color_hex(_text_color));
     _weekday_label->setBgOpa(LV_OPA_TRANSP);
     _weekday_label->removeFlag(LV_OBJ_FLAG_SCROLLABLE);
@@ -231,7 +233,7 @@ void WatchFaceClassic::update()
     }
 
     if (_weekday_label) {
-        _weekday_label->setText(_weekday_map[localTime->tm_wday]);
+        _weekday_label->setText(tr(_weekday_keys[localTime->tm_wday]));
     }
 
     if (_date_label) {

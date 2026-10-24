@@ -1,4 +1,6 @@
 {
+  "alarm_ru/alarm_ru.png": "2ff15db197299887df3d41ddee66ded3473808639d34c6256af7d7eedd1777d3",
+  "alarm_zh/alarm_zh.png": "4fd7ff08aa07692d633f8447b908efde9285fad9f6ec287200e3db6295d03963",
   "launcher/launcher.png": "db10a9c75d3f8b7742532e8ad9c21444420516d42a0a7803a311c0151b2da325",
   "launcher_ja/launcher_ja.png": "10e927aa6fa3742ae478f64966954d6fc532bd6696176a09f88f09d4e3192adf",
   "launcher_ru/launcher_ru.png": "c981a577cd54e73cadf4903aee3a4be7f55013c81651e0c785547f0e9056d9b9",
@@ -9,5 +11,7 @@
   "qiuqiu_thinking/qiuqiu_thinking.png": "c1b4984b9f379caada4b3d29eb2b432734972769d5a673573cea6e8a24797ac0",
   "settings/settings.png": "78cc2e2a57806968ed21c5b223c199acf17b480393124220338eabcee5001563",
   "settings_zh/settings_zh.png": "b554699cea2881374662bbb35d17b15778c51f02da30ead8ef4941063c19d85e",
-  "watchface/watchface.png": "21e519684a8e34a8e644ad54729a9b193fa0ad19d71c7a93a9de8439c487f3d5"
+  "stopwatch_zh/stopwatch_zh.png": "a504231d17bc1c6ddd9841cda0692d885b57b6e0eb80a3ded84547d35f0d1e0b",
+  "watchface/watchface.png": "c11c3c9412bd4e335197ca52a957ce31a04de1dffd1ce80a4530053d08e8290a",
+  "watchface_zh/watchface_zh.png": "c3992d3c4c21c3b441ecd8590d298524c6dc7ed040e30c474a83f15f43ebb2d7"
 }

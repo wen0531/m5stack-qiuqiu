@@ -5,6 +5,7 @@
  */
 #include "view.h"
 #include <assets/assets.h>
+#include <i18n/i18n.h>
 #include <cstdio>
 
 using namespace view;
@@ -56,8 +57,8 @@ void AlarmAddView::init(lv_obj_t* parent)
 
     _title_label = std::make_unique<Label>(_panel->get());
     _title_label->align(LV_ALIGN_TOP_MID, 0, 75);
-    _title_label->setText("Add Alarm");
-    _title_label->setTextFont(&MontserratSemiBold26);
+    _title_label->setText(tr("add_alarm"));
+    _title_label->setTextFont(i18nFont());
     _title_label->setTextColor(lv_color_hex(_label_color));
 
     const auto hour_options = build_number_options(0, 23);
@@ -111,8 +112,8 @@ void AlarmAddView::init(lv_obj_t* parent)
     _ok_button->setBorderWidth(0);
     _ok_button->setShadowWidth(0);
     _ok_button->setBgColor(lv_color_hex(_ok_color));
-    _ok_button->label().setText("OK");
-    _ok_button->label().setTextFont(&lv_font_montserrat_28);
+    _ok_button->label().setText(tr("ok"));
+    _ok_button->label().setTextFont(i18nFont());
     _ok_button->label().setTextColor(lv_color_hex(_ok_text_color));
     _ok_button->label().align(LV_ALIGN_CENTER, 0, 0);
     _ok_button->onClick().connect([this]() { _is_confirmed = true; });

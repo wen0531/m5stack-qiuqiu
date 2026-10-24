@@ -89,6 +89,36 @@ SCENARIOS = {
         ("step 2500", None),
         ("shot", "settings_zh.png"),
     ],
+    # The apps used to keep English titles/buttons after the launcher and
+    # settings were localised; these lock the translated layouts in.
+    "alarm_zh": [
+        ("lang zh-Hans", None),
+        ("step 800", None),
+        ("open AlarmClock", None),
+        ("step 1500", None),
+        ("shot", "alarm_zh.png"),
+    ],
+    "stopwatch_zh": [
+        ("lang zh-Hans", None),
+        ("step 800", None),
+        ("open Stopwatch", None),
+        ("step 1500", None),
+        ("shot", "stopwatch_zh.png"),
+    ],
+    "watchface_zh": [
+        ("lang zh-Hans", None),
+        ("step 800", None),
+        ("open WatchFace", None),
+        ("step 2500", None),
+        ("shot", "watchface_zh.png"),
+    ],
+    "alarm_ru": [
+        ("lang ru", None),
+        ("step 800", None),
+        ("open AlarmClock", None),
+        ("step 1500", None),
+        ("shot", "alarm_ru.png"),
+    ],
 }
 
 def centre_label():
@@ -164,7 +194,13 @@ def run(update=False):
         # language and RTC state are identical each run
         # the control socket is a single global port: make sure the previous
         # scenario's process is really gone before starting the next one
-        wait_port(False, 10)
+        if not wait_port(False, 10):
+            # A leftover simulator (e.g. the one behind the web UI on 9123)
+            # would silently answer the commands and the baseline would be
+            # recorded from the wrong build - fail loudly instead.
+            print(f"  ! port {PORT[0]} is still in use; stop the running simulator first")
+            failures.append(f"{name}/port-busy-{PORT[0]}")
+            continue
         env = dict(os.environ, SIM_START_PAUSED="1", SIM_CTRL_PORT=str(PORT[0]))
         proc = subprocess.Popen([SIM], stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT, env=env)
         if not wait_port(True, 15):

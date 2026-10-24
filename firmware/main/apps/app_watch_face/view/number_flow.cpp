@@ -6,6 +6,7 @@
 #include "watch_face.h"
 #include <assets/assets.h>
 #include <hal/hal.h>
+#include <i18n/i18n.h>
 #include <array>
 #include <ctime>
 #include <cstdio>
@@ -34,8 +35,9 @@ struct Theme {
     uint32_t dateColor;
 };
 
-constexpr std::array<const char*, 7> _weekday_map = {
-    "SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT",
+/* i18n keys, not literal abbreviations: the weekday follows the UI language. */
+constexpr std::array<const char*, 7> _weekday_keys = {
+    "wd_sun", "wd_mon", "wd_tue", "wd_wed", "wd_thu", "wd_fri", "wd_sat",
 };
 
 constexpr std::array<Theme, 10> _themes = {
@@ -108,7 +110,7 @@ void WatchFaceNumberFlow::onCreate(lv_obj_t* parent)
 
     _date_label = std::make_unique<Label>(parent);
     _date_label->align(LV_ALIGN_CENTER, 0, _date_y_offset);
-    _date_label->setTextFont(&lv_font_montserrat_24);
+    _date_label->setTextFont(i18nFont());
     _date_label->setTextColor(lv_color_hex(0xA0A0A0));
     _date_label->setBgOpa(LV_OPA_TRANSP);
     _date_label->removeFlag(LV_OBJ_FLAG_SCROLLABLE);
@@ -180,10 +182,10 @@ void WatchFaceNumberFlow::update()
         _second_flow->setValue(localTime->tm_sec);
     }
 
-    if (_date_label && localTime->tm_wday >= 0 && localTime->tm_wday < static_cast<int>(_weekday_map.size())) {
+    if (_date_label && localTime->tm_wday >= 0 && localTime->tm_wday < static_cast<int>(_weekday_keys.size())) {
         char buffer[32] = {};
         std::snprintf(buffer, sizeof(buffer), "%d/%d/%d %s", localTime->tm_year + 1900, localTime->tm_mon + 1,
-                      localTime->tm_mday, _weekday_map[localTime->tm_wday]);
+                      localTime->tm_mday, tr(_weekday_keys[localTime->tm_wday]));
         _date_label->setText(buffer);
     }
 }
