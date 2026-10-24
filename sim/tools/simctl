@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Command line client for the StopWatch simulator control socket."""
-import socket, sys, argparse
+import os, socket, sys, argparse
 
-PORT = 9123
+PORT = int(os.environ.get("SIM_CTRL_PORT", "9123"))
 
 def send(cmd: str, timeout: float = 10.0) -> str:
     s = socket.create_connection(("127.0.0.1", PORT), timeout=timeout)
@@ -35,6 +35,9 @@ def main():
     sw.add_argument("--ms", type=int, default=300)
     sh = sub.add_parser("shot", help="write a PNG of the current frame")
     sh.add_argument("path")
+    op = sub.add_parser("open", help="open an app by name")
+    op.add_argument("name")
+    sub.add_parser("closeapps", help="close every app")
     sub.add_parser("dump", help="list UI labels with coordinates")
     tt = sub.add_parser("tap_text", help="tap a widget by its label text")
     tt.add_argument("text")
@@ -52,12 +55,13 @@ def main():
     elif a.cmd in ("down", "up"):
         out = send(f"{a.cmd} {a.name.upper()}")
     elif a.cmd == "hold":
-        send("down A"); send("down B")
-        import time; time.sleep(a.ms / 1000)
-        send("up A"); send("up B")
-        out = "ok"
+        out = send(f"combo {a.ms}")
     elif a.cmd == "lang":
         out = send(f"lang {a.code}" if a.code else "lang")
+    elif a.cmd == "open":
+        out = send(f"open {a.name}")
+    elif a.cmd == "closeapps":
+        out = send("closeapps")
     elif a.cmd == "tap_text":
         out = send(f"tap_text {a.text}")
     elif a.cmd == "swipe":

@@ -71,6 +71,31 @@ python3 tools/langsweep.py       # 10 种语言各截一张
 python3 tools/simrun.py "shot out/x.png" "raw crash"   # 崩溃检测
 ```
 
+## 确定性模式与回归测试
+
+模拟器可以完全脱离真实时间运行：时间只在测试要求时前进，因此同一脚本每次得到**逐字节相同**的截图。
+
+```bash
+SIM_START_PAUSED=1 ./build/stopwatch_sim     # 启动即暂停
+simctl raw step 1500                          # 推进 1.5 秒模拟时间
+simctl raw "clock 09:41:00"                   # 固定 RTC
+simctl raw "clock date 2026-10-24"
+simctl open Settings                          # 按名字打开应用（不走手势）
+```
+
+回归测试：
+
+```bash
+python3 tools/regress.py            # 与基线比对
+python3 tools/regress.py --update   # 重建基线
+```
+
+场景：launcher / watchface / settings / qiuqiu / settings_zh。
+每个场景独立进程 + 独立控制端口，连续三次运行哈希一致。
+
+> 已知差异：球球页面在真机上会隐藏启动器，模拟器里 LVGL 透明层仍会显示启动器文字/箭头，
+> 因此球球截图会多出 `AlarmClock` 与左右箭头。
+
 ## 设备容量约束（重要）
 
 PC 的内存和 Flash 远大于手表，不加限制就会跑出"真机根本装不下"的固件。

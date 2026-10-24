@@ -3,6 +3,7 @@
 // (audio, IMU, PMIC, OTA).  The goal is to run the real UI code unchanged.
 #include <hal/hal.h>
 #include "sim_input.h"
+#include "sim_clock.h"
 #include <chrono>
 #include <cstring>
 #include <cstdlib>
@@ -27,9 +28,7 @@ void Hal::delay(std::uint32_t ms) { std::this_thread::sleep_for(std::chrono::mil
 
 std::uint32_t Hal::millis()
 {
-    using namespace std::chrono;
-    static const auto t0 = steady_clock::now();
-    return (uint32_t)duration_cast<milliseconds>(steady_clock::now() - t0).count();
+    return sim_clock::now_ms();
 }
 
 void Hal::feedTheDog() { /* no watchdog on the host */ }
@@ -141,9 +140,28 @@ void Hal::updateImuData() {}
 void Hal::syncRtcTimeToSystem() {}
 void Hal::syncSystemTimeToRtc() {}
 
-DateYmd Hal::getDateYmd() { return {}; }
+DateYmd Hal::getDateYmd()
+{
+    DateYmd d{};
+    int y = 0, mo = 0, day = 0;
+    sim_clock::get_ymd(y, mo, day);
+    d.year  = (uint16_t)y;
+    d.month = (uint8_t)mo;
+    d.day   = (uint8_t)day;
+    return d;
+}
 bool Hal::setDateYmd(const DateYmd&) { return true; }
-TimeHms Hal::getTimeHms() { return {}; }
+
+TimeHms Hal::getTimeHms()
+{
+    TimeHms t{};
+    int h = 0, m = 0, s = 0;
+    sim_clock::get_hms(h, m, s);
+    t.hour = (uint8_t)h;
+    t.minute = (uint8_t)m;
+    t.second = (uint8_t)s;
+    return t;
+}
 bool Hal::setTimeHms(const TimeHms&) { return true; }
 void Hal::setTimezone(std::string_view) {}
 std::string Hal::getTimezone() { return "UTC"; }

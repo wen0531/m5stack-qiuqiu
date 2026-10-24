@@ -29,16 +29,25 @@ using mooncake::Mooncake;
 #include "sim_display.h"
 #include "sim_log.h"
 #include "mem_guard.h"
+#include "sim_clock.h"
 
 static constexpr int W = 466;
 static constexpr int H = 466;
-static constexpr int PORT = 9123;
+static int ctrl_port()
+{
+    static const int port = [] {
+        const char* v = std::getenv("SIM_CTRL_PORT");
+        return v ? std::atoi(v) : 9123;
+    }();
+    return port;
+}
 
 static std::mutex g_fb_mutex;   /* serialises screenshot access */
 static std::atomic<bool> g_running{true};
 static std::atomic<uint32_t> g_frames{0};
 static std::atomic<uint32_t> g_loops{0};
 static std::atomic<bool>     g_frozen{false};
+static std::atomic<bool>     g_deterministic{false};
 static std::atomic<uint32_t> g_last_loop_ms{0};
 static std::string g_last_log;
 
@@ -79,6 +88,22 @@ static void log_cb(lv_log_level_t, const char* buf)
 {
     sim_log_add(buf);
     std::fputs(buf, stdout);
+}
+
+/* Advance simulated time. In step mode the main loop is paused, so input
+   commands have to let time pass for LVGL to process the event. */
+static void sim_advance(uint32_t ms)
+{
+    if (!g_deterministic) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(ms));
+        return;
+    }
+    const uint32_t target = sim_clock::now_ms() + ms;
+    sim_clock::set_paused(false);
+    while (sim_clock::now_ms() < target && g_running) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    sim_clock::set_paused(true);
 }
 
 /* ------------------------------------------------------------ ui helpers */
@@ -124,8 +149,9 @@ static void handle_command(const std::string& cmd, std::string& reply)
     int x = 0, y = 0, ms = 0, x2 = 0, y2 = 0;
     if (std::sscanf(cmd.c_str(), "key %c %d", &key, &ms) == 2) {
         sim_input::set_key(key, true);
-        std::this_thread::sleep_for(std::chrono::milliseconds(ms));
+        sim_advance((uint32_t)(ms > 0 ? ms : 80));
         sim_input::set_key(key, false);
+        sim_advance(60);
         reply = "ok\n";
     } else if (std::sscanf(cmd.c_str(), "down %c", &key) == 1) {
         sim_input::set_key(key, true);
@@ -135,8 +161,9 @@ static void handle_command(const std::string& cmd, std::string& reply)
         reply = "ok\n";
     } else if (std::sscanf(cmd.c_str(), "tap %d %d", &x, &y) == 2) {
         sim_input::set_touch(x, y, true);
-        std::this_thread::sleep_for(std::chrono::milliseconds(80));
+        sim_advance(80);
         sim_input::set_touch(x, y, false);
+        sim_advance(120);
         reply = "ok\n";
     } else if (std::sscanf(cmd.c_str(), "swipe %d %d %d %d %d", &x, &y, &ms, &x2, &y2) == 5) {
         /* simple drag: press, interpolate, release */
@@ -144,9 +171,10 @@ static void handle_command(const std::string& cmd, std::string& reply)
         sim_input::set_touch(x, y, true);
         for (int i = 1; i <= steps; ++i) {
             sim_input::set_touch(x + (x2 - x) * i / steps, y + (y2 - y) * i / steps, true);
-            std::this_thread::sleep_for(std::chrono::milliseconds(ms / steps));
+            sim_advance((uint32_t)(ms / steps));
         }
         sim_input::set_touch(x2, y2, false);
+        sim_advance(120);
         reply = "ok\n";
     } else if (cmd == "dump") {
         std::vector<UiItem> items;
@@ -170,8 +198,9 @@ static void handle_command(const std::string& cmd, std::string& reply)
                 const int cx = (it.hit.x1 + it.hit.x2) / 2;
                 const int cy = (it.hit.y1 + it.hit.y2) / 2;
                 sim_input::set_touch(cx, cy, true);
-                std::this_thread::sleep_for(std::chrono::milliseconds(80));
+                sim_advance(80);
                 sim_input::set_touch(cx, cy, false);
+                sim_advance(120);
                 reply = "ok " + std::to_string(cx) + " " + std::to_string(cy) + "\n";
                 hit = true;
                 break;
@@ -228,12 +257,15 @@ static void handle_command(const std::string& cmd, std::string& reply)
         sim_display::lock();
         const bool ok = write_png_rgb565(path, sim_display::pixels(), W, H);
         sim_display::unlock();
-        reply = ok ? std::string("ok ") + path + "\n" : "error\n";
+        char extra[96];
+        std::snprintf(extra, sizeof(extra), "ok %s frame=%u sim_ms=%u\n", path,
+                      g_frames.load(), sim_clock::now_ms());
+        reply = ok ? std::string(extra) : "error\n";
     } else if (cmd == "state") {
         char buf[512];
         std::snprintf(buf, sizeof(buf),
-                      "frames=%u loops=%u last_loop_ms=%u lang=%s screen_off=%d app=%s voltage=%u level=%u %s\n",
-                      g_frames.load(), g_loops.load(), g_last_loop_ms.load(),
+                      "sim_ms=%u frames=%u loops=%u last_loop_ms=%u lang=%s screen_off=%d app=%s voltage=%u level=%u %s\n",
+                      sim_clock::now_ms(), g_frames.load(), g_loops.load(), g_last_loop_ms.load(),
                       i18nCode(i18nLang()),
                       GetHAL().screen_off_active() ? 1 : 0,
                       current_app_name().c_str(),
@@ -243,6 +275,66 @@ static void handle_command(const std::string& cmd, std::string& reply)
         int n = 40;
         std::sscanf(cmd.c_str(), "log %d", &n);
         reply = sim_log_tail(n);
+    } else if (cmd.rfind("step", 0) == 0) {
+        int ms = 100;
+        std::sscanf(cmd.c_str(), "step %d", &ms);
+        if (ms < 1) ms = 1;
+        g_deterministic = true;
+        sim_advance((uint32_t)ms);
+        char buf[128];
+        std::snprintf(buf, sizeof(buf), "stepped to sim_ms=%u frame=%u\n",
+                      sim_clock::now_ms(), g_frames.load());
+        reply = buf;
+    } else if (cmd == "pause") {
+        g_deterministic = true;
+        sim_clock::set_paused(true);
+        reply = "paused\n";
+    } else if (cmd == "resume") {
+        g_deterministic = false;
+        sim_clock::set_paused(false);
+        reply = "resumed\n";
+    } else if (cmd.rfind("clock", 0) == 0) {
+        long long epoch = 0;
+        int h = 0, m = 0, s2 = 0, y = 0, mo = 0, d = 0;
+        if (std::sscanf(cmd.c_str(), "clock epoch %lld", &epoch) == 1) {
+            sim_clock::set_epoch(epoch);
+        } else if (std::sscanf(cmd.c_str(), "clock %d:%d:%d", &h, &m, &s2) == 3) {
+            const int64_t base = sim_clock::epoch() - (sim_clock::epoch() % 86400);
+            sim_clock::set_epoch(base + h * 3600 + m * 60 + s2);
+        } else if (std::sscanf(cmd.c_str(), "clock date %d-%d-%d", &y, &mo, &d) == 3) {
+            std::tm tm_buf{};
+            tm_buf.tm_year = y - 1900;
+            tm_buf.tm_mon  = mo - 1;
+            tm_buf.tm_mday = d;
+            sim_clock::set_epoch((int64_t)timegm(&tm_buf));
+        }
+        char buf[96];
+        std::snprintf(buf, sizeof(buf), "clock epoch=%lld\n", (long long)sim_clock::epoch());
+        reply = buf;
+    } else if (cmd.rfind("open ", 0) == 0) {
+        /* open an app by name: deterministic, bypasses launcher gestures */
+        const std::string name = cmd.substr(5);
+        bool ok = false;
+        for (auto& p : GetMooncake().getAllAppProps()) {
+            if (p.info.name == name) {
+                ok = GetMooncake().openApp(p.appID);
+                break;
+            }
+        }
+        reply = ok ? "ok\n" : "not found\n";
+    } else if (cmd.rfind("closeapps", 0) == 0) {
+        for (auto& p : GetMooncake().getAllAppProps()) GetMooncake().closeApp(p.appID);
+        reply = "ok\n";
+    } else if (cmd.rfind("combo", 0) == 0) {
+        int ms = 600;
+        std::sscanf(cmd.c_str(), "combo %d", &ms);
+        sim_input::set_key('A', true);
+        sim_input::set_key('B', true);
+        sim_advance((uint32_t)ms);
+        sim_input::set_key('A', false);
+        sim_input::set_key('B', false);
+        sim_advance(200);
+        reply = "ok\n";
     } else if (cmd == "freeze") {
         g_frozen = true;          /* stop the main loop, used to test stall detection */
         reply = "frozen\n";
@@ -278,13 +370,13 @@ static void control_server()
     sockaddr_in addr{};
     addr.sin_family      = AF_INET;
     addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
-    addr.sin_port        = htons(PORT);
+    addr.sin_port        = htons((uint16_t)ctrl_port());
     if (bind(srv, (sockaddr*)&addr, sizeof(addr)) != 0) {
         std::perror("bind");
         return;
     }
     listen(srv, 4);
-    std::printf("control listening on 127.0.0.1:%d\n", PORT);
+    std::printf("control listening on 127.0.0.1:%d\n", ctrl_port());
     while (g_running) {
         int cli = accept(srv, nullptr, nullptr);
         if (cli < 0) break;
@@ -343,9 +435,30 @@ int main(int argc, char** argv)
 
     const auto t0 = std::chrono::steady_clock::now();
     uint32_t tick_acc = 0;
+    sim_clock::init();
+    /* SIM_START_PAUSED=1 makes the run fully deterministic from t=0: nothing
+       advances until a `step` command asks for it, so boot animations cannot
+       depend on how long the process has been up. */
+    if (std::getenv("SIM_START_PAUSED")) {
+        g_deterministic = true;
+        sim_clock::set_paused(true);
+    }
     while (g_running) {
-        const auto now = std::chrono::steady_clock::now();
-        const uint32_t ms = (uint32_t)std::chrono::duration_cast<std::chrono::milliseconds>(now - t0).count();
+        /* deterministic mode: only advance when a `step` command asked for it */
+        if (sim_clock::paused()) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(2));
+            continue;
+        }
+        uint32_t ms;
+        if (g_deterministic) {
+            ms = sim_clock::now_ms() + 5;
+            sim_clock::advance(5);
+            if (sim_clock::paused()) { /* budget exhausted by step handler */ }
+        } else {
+            const auto now = std::chrono::steady_clock::now();
+            ms = (uint32_t)std::chrono::duration_cast<std::chrono::milliseconds>(now - t0).count();
+            sim_clock::advance(ms - sim_clock::now_ms());
+        }
         lv_tick_inc(ms - tick_acc);
         tick_acc = ms;
 
