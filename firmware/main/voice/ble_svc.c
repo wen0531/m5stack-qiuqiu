@@ -42,6 +42,10 @@ static volatile uint32_t s_tx_errors = 0;
 static volatile uint32_t s_activity = 0;
 static volatile uint8_t s_pending_cmd = 0;
 static volatile uint8_t s_pending_val = 0;
+static volatile bool s_time_pending = false;
+static volatile uint32_t s_time_epoch = 0;
+static volatile bool s_tz_pending = false;
+static volatile int8_t s_tz_hours = 0;
 static uint16_t s_audio_handle = 0;
 
 /* downlink audio ring (PC -> device) */
@@ -149,6 +153,22 @@ bool ble_svc_take_command(uint8_t *cmd, uint8_t *value)
     s_pending_cmd = 0;
     return true;
 }
+bool ble_svc_take_time(uint32_t *epoch)
+{
+    if (!s_time_pending) return false;
+    if (epoch) *epoch = s_time_epoch;
+    s_time_pending = false;
+    return true;
+}
+
+bool ble_svc_take_timezone(int8_t *hours)
+{
+    if (!s_tz_pending) return false;
+    if (hours) *hours = s_tz_hours;
+    s_tz_pending = false;
+    return true;
+}
+
 bool ble_svc_ready(void) { return s_conn != BLE_HS_CONN_HANDLE_NONE && s_subscribed; }
 
 static int ctrl_access(uint16_t conn_handle, uint16_t attr_handle,
@@ -189,6 +209,15 @@ static int ctrl_access(uint16_t conn_handle, uint16_t attr_handle,
             s_pending_cmd = 0x50;
             s_pending_val = buf[1];
             ESP_LOGI(TAG, "cmd agent face %u", buf[1]);
+        } else if (buf[0] == 0x60 && len >= 5) {
+            s_time_epoch = (uint32_t)buf[1] | ((uint32_t)buf[2] << 8) | ((uint32_t)buf[3] << 16) |
+                           ((uint32_t)buf[4] << 24);
+            s_time_pending = true;
+            ESP_LOGI(TAG, "cmd set time %lu", (unsigned long)s_time_epoch);
+        } else if (buf[0] == 0x61 && len >= 2) {
+            s_tz_hours = (int8_t)buf[1];
+            s_tz_pending = true;
+            ESP_LOGI(TAG, "cmd set tz %d", (int)s_tz_hours);
         } else if (buf[0] == 0x40) {
             s_pending_cmd = 0x40;
             s_pending_val = 0;

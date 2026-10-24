@@ -6,7 +6,10 @@
 #include "voice_state.h"
 
 #include <cmath>
+#include <cstdio>
 #include <cstring>
+#include <ctime>
+#include <sys/time.h>
 #include <vector>
 #include <esp_heap_caps.h>
 
@@ -252,6 +255,34 @@ static void voice_task(void* arg)
                 else if (cmd == 0x40) batt_log_dump();
                 else if (cmd == 0x36) { /* codec stays 44.1 kHz: no mode switch */ }
                 else if (cmd == 0x37) { }
+            }
+
+            /* Time sync from the host. Applied here (not in the BLE callback):
+               both touch I2C and NVS. The timezone must be set first so the
+               RTC write below converts local time to UTC with the right
+               offset. */
+            int8_t tz_hours = 0;
+            if (ble_svc_take_timezone(&tz_hours)) {
+                char tz[16];
+                std::snprintf(tz, sizeof(tz), "UTC%d", -(int)tz_hours);
+                GetHAL().setTimezone(tz);
+                GetHAL().syncRtcTimeToSystem();
+                ESP_LOGI(TAG, "timezone from host: %s (UTC%+d)", tz, (int)tz_hours);
+            }
+            uint32_t epoch = 0;
+            if (ble_svc_take_time(&epoch)) {
+                struct timeval tv = {.tv_sec = (time_t)epoch, .tv_usec = 0};
+                settimeofday(&tv, nullptr);
+                GetHAL().syncSystemTimeToRtc();
+                /* read the RTC back, so the log proves it really took the
+                   write (mclog sits at warn, its own confirmation is hidden) */
+                GetHAL().syncRtcTimeToSystem();
+                std::time_t now_rtc = std::time(nullptr);
+                struct tm lt {};
+                localtime_r(&now_rtc, &lt);
+                ESP_LOGI(TAG, "clock set from host: epoch=%lu -> %04d-%02d-%02d %02d:%02d:%02d local",
+                         (unsigned long)epoch, lt.tm_year + 1900, lt.tm_mon + 1, lt.tm_mday, lt.tm_hour,
+                         lt.tm_min, lt.tm_sec);
             }
             if (s_session_active && !talking && !g_playing &&
                 (int32_t)(now - think_until) > 0) {

@@ -152,6 +152,8 @@
 | `0x37` | 声称"切回 44.1 kHz" | 1 B | `voice_task` | 空分支 | 已受理／空实现 |
 | `0x40` | 电池 CSV 导出 | 1 B | `voice_task` → `batt_log_dump` | 走 `0x7F` 通道流式输出 CSV | 已接线 |
 | `0x50` | 后台配色 | `[0x50, 0..2]` | `voice_task` → `set_agent_color` | 0 白、1 蓝、2 红 | 已接线 |
+| `0x60` | 对时 | `0x60` + 4 B 小端 Unix 秒 | `voice_task` | `settimeofday` → 写 RTC → 回读校验；日志 `clock set from host` | 已接线 |
+| `0x61` | 时区 | `[0x61, 小时偏移 int8]` | `voice_task` | `setTimezone("UTC±n")`（POSIX 记法：UTC+8 写作 `UTC-8`），存 NVS，随后从 RTC 重读系统时间 | 已接线 |
 
 补充：
 
@@ -160,6 +162,9 @@
 3. 配色索引由桥下发：`agents.json` 里每个后台的 `color` 字段随 `{"type":"agent","active":…}` 一起发给 App，App 不再认识具体后台名称；
    固件只认索引，不认名字。改名需同步桥与 App（见附录 A）。
 4. 命令在播报期间可写但不会被消费，`0x40` 因此需要 App 侧等待通道空闲（见 6.5）。
+5. 对时（`0x60`）与时区（`0x61`）用独立槽位，不占单槽命令缓冲，也不在 BLE 回调里执行——
+   两者都要碰 I2C/NVS，统一交给 `voice_task` 处理。两者可连续下发，时区先生效才能保证
+   写进 RTC 的是正确的 UTC。
 
 ### 2.4 状态特征
 

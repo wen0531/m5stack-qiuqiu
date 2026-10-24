@@ -57,6 +57,14 @@ void ble_svc_set_audio_mode(bool fast);
  * (same packet layout). Frames are queued for the playback task. */
 bool ble_svc_take_downlink(uint8_t *pkt, size_t max_len, size_t *out_len);
 
+/* Time sync over the control characteristic, queued for the voice task (the
+ * BLE callback must not touch the RTC/I2C bus):
+ *   0x60 <u32 unix seconds, little endian>  set system clock + RTC
+ *   0x61 <i8 utc offset in hours>           set the POSIX timezone (8 = UTC+8)
+ * Both return false when nothing is pending; taking clears the slot. */
+bool ble_svc_take_time(uint32_t *epoch);
+bool ble_svc_take_timezone(int8_t *hours);
+
 /* monotic activity counter: bumps on connect/subscribe/control writes */
 uint32_t ble_svc_activity(void);
 
