@@ -24,6 +24,7 @@ add_executable(stopwatch_sim
     src/sim_input.cpp
     src/png.cpp
     src/sim_display.cpp
+    src/sim_log.cpp
     src/voice_stub.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/stubs/button/Button_Class.cpp
     ${FW}/main/i18n/i18n.cpp

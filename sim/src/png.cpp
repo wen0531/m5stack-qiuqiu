@@ -1,9 +1,21 @@
 // Minimal PNG writer (RGB565 framebuffer -> RGB888 PNG) using zlib.
 #include "png.h"
+
 #include <zlib.h>
 #include <cstdio>
 #include <cstring>
 #include <vector>
+
+bool write_png_rgb565(const char* path, const uint16_t* fb, int w, int h)
+{
+    std::vector<unsigned char> png;
+    if (!png_to_memory(fb, w, h, png)) return false;
+    FILE* f = std::fopen(path, "wb");
+    if (!f) return false;
+    std::fwrite(png.data(), 1, png.size(), f);
+    std::fclose(f);
+    return true;
+}
 
 static void put32(std::vector<unsigned char>& v, uint32_t x)
 {
@@ -22,7 +34,7 @@ static void put_chunk(std::vector<unsigned char>& out, const char* type,
     put32(out, (uint32_t)crc);
 }
 
-bool write_png_rgb565(const char* path, const uint16_t* fb, int w, int h)
+bool png_to_memory(const uint16_t* fb, int w, int h, std::vector<unsigned char>& out)
 {
     std::vector<unsigned char> raw;
     raw.reserve((size_t)h * (w * 3 + 1));
@@ -49,9 +61,6 @@ bool write_png_rgb565(const char* path, const uint16_t* fb, int w, int h)
     put_chunk(png, "IHDR", ihdr);
     put_chunk(png, "IDAT", comp);
     put_chunk(png, "IEND", {});
-    FILE* f = std::fopen(path, "wb");
-    if (!f) return false;
-    std::fwrite(png.data(), 1, png.size(), f);
-    std::fclose(f);
+    out = std::move(png);
     return true;
 }

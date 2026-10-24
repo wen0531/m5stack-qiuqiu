@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>StopWatch 模拟器</title>
+<style>
+  :root { --bg:#0b0c0e; --panel:#15171a; --line:#25282d; --text:#e8eaed; --dim:#8b9098; --accent:#4ea1ff; --ok:#3ddc84; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body { margin:0; background:var(--bg); color:var(--text);
+         font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+         display:flex; justify-content:center; padding:18px; }
+  .wrap { display:flex; gap:18px; align-items:flex-start; flex-wrap:wrap; justify-content:center; width:100%; max-width:1000px; }
+  .screen-col { display:flex; flex-direction:column; align-items:center; gap:10px; }
+  .device { position:relative; padding:14px; border-radius:64px; background:linear-gradient(160deg,#2a2d33,#111316);
+            box-shadow: 0 18px 50px rgba(0,0,0,.6), inset 0 0 0 1px #3a3e45; }
+  .screen { width:466px; height:466px; border-radius:52px; overflow:hidden; background:#000;
+            cursor:crosshair; touch-action:none; }
+  .screen img { width:466px; height:466px; display:block; image-rendering:auto; pointer-events:none; }
+  .under { color:var(--dim); font-size:12px; }
+  .panel { background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:14px; width:360px; }
+  h2 { font-size:13px; letter-spacing:.08em; text-transform:uppercase; color:var(--dim); margin:0 0 10px; font-weight:600; }
+  .keys { display:flex; gap:10px; margin-bottom:14px; }
+  .key { flex:1; padding:16px 0; border-radius:12px; border:1px solid var(--line); background:#1e2126; color:var(--text);
+         font-size:15px; font-weight:600; cursor:pointer; user-select:none; text-align:center; }
+  .key:active, .key.on { background:var(--accent); color:#04121f; border-color:var(--accent); }
+  .key small { display:block; font-weight:400; font-size:11px; color:var(--dim); margin-top:3px; }
+  .key:active small { color:#04121f; }
+  .row { display:flex; gap:8px; align-items:center; margin-bottom:10px; }
+  .row label { font-size:13px; color:var(--dim); width:52px; }
+  select, button.act { flex:1; background:#1e2126; color:var(--text); border:1px solid var(--line);
+                       border-radius:10px; padding:9px; font-size:13px; }
+  button.act { cursor:pointer; }
+  button.act:hover { border-color:var(--accent); }
+  .status { display:grid; grid-template-columns:1fr 1fr; gap:6px 10px; font-size:12px; color:var(--dim); margin:12px 0; }
+  .status b { color:var(--text); font-weight:500; }
+  .dot { display:inline-block; width:7px; height:7px; border-radius:50%; background:var(--ok); margin-right:5px; }
+  .log { background:#0d0f11; border:1px solid var(--line); border-radius:10px; padding:9px;
+         font-family: ui-monospace, Menlo, Consolas, monospace; font-size:11px; color:#9aa3ad;
+         height:130px; overflow:auto; white-space:pre-wrap; }
+  @media (max-width: 900px) {
+    .screen, .screen img { width:min(466px, 86vw); height:min(466px, 86vw); }
+    .panel { width:min(360px, 92vw); }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="screen-col">
+    <div class="device">
+      <div class="screen" id="screen"><img id="view" src="/stream" alt="screen"></div>
+    </div>
+    <div class="under">点一下 = 触摸　拖动 = 滑动</div>
+  </div>
+
+  <div class="panel">
+    <h2>按键</h2>
+    <div class="keys">
+      <div class="key" id="keyA">A<small>长按说话</small></div>
+      <div class="key" id="keyB">B<small>切换后台</small></div>
+    </div>
+    <div class="keys">
+      <div class="key" id="keyBoth">A + B<small>返回主页</small></div>
+    </div>
+
+    <h2>控制</h2>
+    <div class="row">
+      <label>语言</label>
+      <select id="lang">
+        <option value="en">English</option>
+        <option value="zh-Hans">简体中文</option>
+        <option value="zh-Hant">繁體中文</option>
+        <option value="ja">日本語</option>
+        <option value="ko">한국어</option>
+        <option value="fr">Français</option>
+        <option value="de">Deutsch</option>
+        <option value="es">Español</option>
+        <option value="ru">Русский</option>
+        <option value="la">Latina</option>
+      </select>
+    </div>
+    <div class="row">
+      <label>页面</label>
+      <button class="act" id="btnHome">回主页</button>
+      <button class="act" id="btnShot">截图</button>
+    </div>
+
+    <div class="status">
+      <div><span class="dot"></span>连接 <b id="sConn">…</b></div>
+      <div>应用 <b id="sApp">—</b></div>
+      <div>语言 <b id="sLang">—</b></div>
+      <div>帧数 <b id="sFrames">—</b></div>
+      <div>循环 <b id="sLoops">—</b></div>
+      <div>电量 <b id="sBat">—</b></div>
+    </div>
+
+    <h2>日志</h2>
+    <div class="log" id="log">…</div>
+  </div>
+</div>
+
+<script>
+const cmd = (c) => fetch('/cmd?c=' + encodeURIComponent(c)).then(r => r.text()).catch(()=>'');
+const $ = (id) => document.getElementById(id);
+
+/* ---- keys: pointerdown/up keeps the key held while pressed ---- */
+function bindKey(el, name) {
+  el.addEventListener('pointerdown', (e) => { e.preventDefault(); el.classList.add('on'); cmd('down ' + name); });
+  const up = (e) => { e.preventDefault(); el.classList.remove('on'); cmd('up ' + name); };
+  el.addEventListener('pointerup', up);
+  el.addEventListener('pointercancel', up);
+  el.addEventListener('pointerleave', (e) => { if (el.classList.contains('on')) up(e); });
+}
+bindKey($('keyA'), 'A');
+bindKey($('keyB'), 'B');
+$('keyBoth').addEventListener('pointerdown', (e) => { e.preventDefault(); cmd('hold'); });
+$('btnHome').onclick = () => cmd('hold');
+$('btnShot').onclick = () => {
+  const s = new Date().toISOString().replace(/[:.]/g, '-');
+  cmd('shot out/shot-' + s + '.png');
+};
+
+/* ---- touch: click = tap, drag = swipe ---- */
+const screen = $('screen');
+let drag = null;
+const toWatch = (ev) => {
+  const r = screen.getBoundingClientRect();
+  return {
+    x: Math.round((ev.clientX - r.left) * 466 / r.width),
+    y: Math.round((ev.clientY - r.top) * 466 / r.height),
+  };
+};
+screen.addEventListener('pointerdown', (e) => {
+  e.preventDefault();
+  const p = toWatch(e);
+  drag = { x0: p.x, y0: p.y, x1: p.x, y1: p.y, t0: Date.now() };
+  screen.setPointerCapture(e.pointerId);
+});
+screen.addEventListener('pointermove', (e) => { if (drag) { const p = toWatch(e); drag.x1 = p.x; drag.y1 = p.y; } });
+screen.addEventListener('pointerup', (e) => {
+  if (!drag) return;
+  const d = drag; drag = null;
+  const dx = Math.abs(d.x1 - d.x0), dy = Math.abs(d.y1 - d.y0);
+  if (dx < 12 && dy < 12) {
+    cmd(`tap ${d.x0} ${d.y0}`);
+  } else {
+    const ms = Math.max(120, Date.now() - d.t0);
+    cmd(`swipe ${d.x0} ${d.y0} ${ms} ${d.x1} ${d.y1}`);
+  }
+});
+
+/* ---- language ---- */
+$('lang').addEventListener('change', (e) => cmd('lang ' + e.target.value));
+
+/* ---- status polling ---- */
+async function poll() {
+  try {
+    const r = await fetch('/state');
+    const s = await r.json();
+    $('sConn').textContent = '正常';
+    $('sApp').textContent = s.app || '—';
+    $('sLang').textContent = s.lang || '—';
+    $('sFrames').textContent = s.frames || '—';
+    $('sLoops').textContent = s.loops || '—';
+    $('sBat').textContent = (s.level || '?') + '%';
+    const lg = await fetch('/log');
+    const t = await lg.text();
+    if (t.trim()) { $('log').textContent = t; $('log').scrollTop = $('log').scrollHeight; }
+  } catch (e) {
+    $('sConn').textContent = '断开';
+  }
+  setTimeout(poll, 1500);
+}
+poll();
+</script>
+</body>
+</html>

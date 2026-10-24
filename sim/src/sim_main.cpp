@@ -27,6 +27,7 @@ using mooncake::GetMooncake;
 using mooncake::Mooncake;
 #include "sim_input.h"
 #include "sim_display.h"
+#include "sim_log.h"
 
 static constexpr int W = 466;
 static constexpr int H = 466;
@@ -75,8 +76,7 @@ static void indev_read_cb(lv_indev_t*, lv_indev_data_t* data)
 
 static void log_cb(lv_log_level_t, const char* buf)
 {
-    std::lock_guard<std::mutex> lock(g_log_mutex);
-    g_last_log = buf;
+    sim_log_add(buf);
     std::fputs(buf, stdout);
 }
 
@@ -177,6 +177,35 @@ static void handle_command(const std::string& cmd, std::string& reply)
             }
         }
         if (!hit) reply = "not found\n";
+    } else if (cmd == "frame") {
+        std::vector<unsigned char> png;
+        sim_display::lock();
+        const bool ok = png_to_memory(sim_display::pixels(), W, H, png);
+        sim_display::unlock();
+        if (!ok) {
+            reply = "error\n";
+        } else {
+            static const char* tbl = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+            reply.clear();
+            reply.reserve(png.size() * 4 / 3 + 8);
+            size_t i = 0;
+            for (; i + 2 < png.size(); i += 3) {
+                const uint32_t v = (png[i] << 16) | (png[i + 1] << 8) | png[i + 2];
+                reply += tbl[(v >> 18) & 63];
+                reply += tbl[(v >> 12) & 63];
+                reply += tbl[(v >> 6) & 63];
+                reply += tbl[v & 63];
+            }
+            if (i < png.size()) {
+                uint32_t v = png[i] << 16;
+                if (i + 1 < png.size()) v |= png[i + 1] << 8;
+                reply += tbl[(v >> 18) & 63];
+                reply += tbl[(v >> 12) & 63];
+                reply += (i + 1 < png.size()) ? tbl[(v >> 6) & 63] : '=';
+                reply += '=';
+            }
+            reply += "\n";
+        }
     } else if (cmd.rfind("shot", 0) == 0) {
         char path[256] = "sim/out/shot.png";
         std::sscanf(cmd.c_str(), "shot %255s", path);
@@ -195,9 +224,10 @@ static void handle_command(const std::string& cmd, std::string& reply)
                       current_app_name().c_str(),
                       GetHAL().getBatteryVoltage(), GetHAL().getBatteryLevel());
         reply = buf;
-    } else if (cmd == "log") {
-        std::lock_guard<std::mutex> lock(g_log_mutex);
-        reply = g_last_log + "\n";
+    } else if (cmd.rfind("log", 0) == 0) {
+        int n = 40;
+        std::sscanf(cmd.c_str(), "log %d", &n);
+        reply = sim_log_tail(n);
     } else if (cmd == "freeze") {
         g_frozen = true;          /* stop the main loop, used to test stall detection */
         reply = "frozen\n";
