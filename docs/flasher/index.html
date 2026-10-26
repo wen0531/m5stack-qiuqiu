@@ -290,7 +290,7 @@ function localiseComponent(code) {
 
 sel.addEventListener("change", e => apply(e.target.value));
 apply(pickLang());
-setInterval(localiseComponent.bind(null, sel.value), 800);
+setInterval(() => localiseComponent(sel.value), 800);
 customElements.whenDefined("esp-web-install-button").then(() => localiseComponent(sel.value));
 </script>
 </body>
