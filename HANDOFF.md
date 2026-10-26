@@ -42,3 +42,27 @@
 - 需求与计划：`资料/方案/StopWatch-模拟器-需求与计划-2026-10-24.md`
 - 实施计划与日志：`资料/方案/StopWatch-模拟器-TODO-2026-10-24.md`
 - 仓库（私有）：`wen0531/m5stack-qiuqiu`，最新提交 `06f7cf5`
+
+---
+
+## 历史状态（2026-10-20 20:45）：原厂 UserDemo + 球球 App，等待上机实测
+
+**Wen 明天开新对话后，先读 `资料/StopWatch-上机实测清单-2026-10-21.md` 直接开测。**
+
+**一句话状态：** 原厂 UserDemo 固件 + 球球第 9 个 App + BLE 语音已在电脑端全部构建通过；**设备未连接、未刷机**；备份原封未动。等 Wen 选果冻/眼睛档位并批准刷机。
+
+**关键事实：**
+- 硬件：M5Stack StopWatch v1.0.1，ESP32-S3R8（8MB PSRAM/16MB flash），CO5300 AMOLED 466×466，ES8311 音频，CST820 触摸；MAC `c4:9e:7e:12:a5:90`；Secure Boot / Flash Encryption 均未启用。
+- 固件：`firmware/stopwatch-userdemo/build/StopWatch-UserDemo.bin`（4,017,808 B，SHA-256 `a22bbe11c5c67a1b73733ace436edf91ad40f5b3abd0ca8c407e90237e6fa688`），ota_0 分区 0x4F0000，占 77.6%。
+- 刷写：**只写 app 分区** `write-flash 0x20000 build/StopWatch-UserDemo.bin`；分区表与出厂备份逐字节一致（已核对），bootloader/分区表/otadata/NVS 不动。
+- 回厂：`write-flash 0x20000 factory-ota_0-region.bin`（备份区 `~/.local/share/esp32-backups/stopwatch/20261020-152727/`）。
+- 备份副本（Wen 要求复制的）：`~/.local/share/esp32-stopwatch/work/factory-base-copy.bin`，SHA-256 与原件一致 `60a16ce34a7e5d45152c768b1bba6e936d0cdbf0a0200eca670f7eeb51bd8e23`。
+- 启动器共 9 页：WatchFace / Stopwatch / AlarmClock / Audio.FFT / Badge / IMU / LuckyWheel / Settings / **Qiuqiu**。
+- 球球：纯白球 + 纯黑眼，15 表情；Chaikin 平滑 + 扫描线抗锯齿；球体径向形变 + 弹簧物理（果冻 duang）；语音状态自动驱动表情（listening/thinking/happy/sleepy/neutral），A/B 手动浏览 10 秒后回自动。
+- BLE：`StopWatch-BLE`，NimBLE 外设，服务 `4f5a0001…`，音频 notify 20ms/160B IMA-ADPCM；PC 测试脚本 `bridge/stopwatch-ble-test/rx_audio.py`（venv：`~/.local/share/esp32-tools/ble-venv`）。
+- 待 Wen 拍板：① 果冻 4 档选一（`preview/qiuqiu-userdemo/jelly-preset-1..4.gif`，默认档 1）② 眼睛圆润 3 档选一（`eye-roundness.png`，默认原样）③ 刷机授权。
+- 构建环境：IDF v5.5.4（`~/.local/share/esp32-tools/esp-idf-v5.5.4`，工具 `idf-tools-v5.5.4`），PATH 需前置 `/tmp/py312-path`（Python 3.12）；组件已拉齐，无需再 fetch。
+
+**风险（上机先验）：** CO5300 初始化/偏移/颜色未实测；BLE 语音未实测；Qiuqiu 帧率未实测（host 0.51ms/帧）；NimBLE+LVGL 并发未知。
+
+**文档索引：** `资料/StopWatch-上机实测清单-2026-10-21.md`（刷写+验收）、`资料/StopWatch-球球渲染与果冻实现-2026-10-20.md`（算法/参数）、`资料/StopWatch-BLE语音最小验证方案-2026-10-20.md`（B 计划/M1）、`资料/进度文档.md`（全过程）、`决策日志.md` D-024/D-025。
