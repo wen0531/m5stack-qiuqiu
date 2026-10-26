@@ -106,6 +106,17 @@ private:
  * @brief
  *
  */
+class LanguageWorker : public WorkerBase {
+public:
+    LanguageWorker();
+    ~LanguageWorker() override;
+    void update() override;
+
+private:
+    class LanguageSelectView;
+    std::unique_ptr<LanguageSelectView> _view;
+};
+
 class SetTimeWorker : public WorkerBase {
 public:
     SetTimeWorker();

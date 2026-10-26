@@ -6,6 +6,7 @@
 #pragma once
 #include "view/view.h"
 #include "workers/workers.h"
+#include <i18n/i18n.h>
 #include <apps/common/key_manager/key_manager.h>
 #include <mooncake.h>
 #include <cstdint>
@@ -29,6 +30,7 @@ private:
     std::vector<view::SelectMenuPage::MenuSection> _menu_sections;
     void buildMenuSections(bool create_page);
     bool _need_rebuild = false;
+    Lang _menu_lang    = Lang::EN;
     std::unique_ptr<view::SelectMenuPage> _menu_page;
     std::unique_ptr<setup_workers::WorkerBase> _worker;
     std::unique_ptr<input::KeyManager> _key_manager;

@@ -60,10 +60,8 @@ void AppSetup::buildMenuSections(bool create_page)
                  }},
                 {fmt::format("{}: {}", tr("language"), i18nLangName(i18nLang())),
                  [&]() {
-                     /* tap to cycle through the available languages */
-                     const int next = ((int)i18nLang() + 1) % (int)Lang::COUNT;
-                     i18nSetLang((Lang)next);
-                     _need_rebuild = true;      /* rebuild in onRunning, not inside the event */
+                     _destroy_menu = true;
+                     _worker       = std::make_unique<LanguageWorker>();
                  }},
             },
         },
@@ -177,6 +175,11 @@ void AppSetup::onRunning()
         _worker->update();
         if (_worker->isDone()) {
             _worker.reset();
+            if (_menu_lang != i18nLang()) {
+                /* the worker may have changed the language: rebuild the labels */
+                _menu_lang = i18nLang();
+                buildMenuSections(false);
+            }
             _menu_page = std::make_unique<view::SelectMenuPage>(_menu_sections);
         }
     }
