@@ -457,3 +457,7 @@ More symptoms, root causes and fixes are in [`docs/05-pitfalls.md`](docs/05-pitf
 - Battery life is still under test; the latest device measurement is **about 12–13 hours** with the screen off (see 9.1). Reaching the 3–4 day goal depends on making light sleep work.
 - Unverified or unfinished: long-term stability, packet captures of the 24 kbps downlink, concurrent phones, an iOS client, factory testing and OTA updates.
 - For a first deployment follow [`docs/01-quickstart.md`](docs/01-quickstart.md); where this document and the code disagree, the code and that guide win.
+
+## 视频渲染测试（临时）
+
+https://github.com/user-attachments/assets/ba25d027-334d-4b94-81de-2ca41a32aa31
