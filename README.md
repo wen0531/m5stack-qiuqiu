@@ -362,6 +362,12 @@ Power features depend on `CONFIG_PM_ENABLE`, `CONFIG_BT_CTRL_MODEM_SLEEP` and `C
 - The phone currently trusts any server certificate and the bridge does not authenticate clients; there is no pairing, binding, auth or application-layer encryption, so deploy only on trusted networks or behind a VPN/reverse proxy.
 - When exposing to the internet, restrict source addresses and rotate tokens regularly.
 
+## Promo video script
+
+A 90-second script covering all twelve features (feature list, shot-by-shot timing,
+narration text and production notes) lives in [`docs/promo-script.md`](docs/promo-script.md).
+It is written in Chinese, since the video targets a Chinese-speaking audience.
+
 ## 8. Licence and credits
 
 ### 8.1 Licence
