@@ -1,5 +1,6 @@
 # M5Stack Qiuqiu（球球）
 
+[中文](README.md) | [English](README.en.md)
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Web Flasher](https://img.shields.io/badge/flash-in%20browser-brightgreen)](https://wen0531.github.io/m5stack-qiuqiu/flasher/)
@@ -9,18 +10,6 @@
 > USB 连接手表即可在浏览器里刷入，无需安装工具链。
 
 > 作者：wen0531 · 2026 · 代码 MIT，球球形象遵循 Emotion Ball 社区许可（非商业）
-
-> **English Summary**
-> 1. M5Stack Qiuqiu turns an M5Stack StopWatch (ESP32-S3) into a wearable voice assistant.
-> 2. The watch captures push-to-talk audio and streams it over BLE to an Android relay app.
-> 3. The app forwards the audio through a WebSocket to a Python bridge running on a PC.
-> 4. The bridge performs streaming ASR, sends the transcript to a configurable LLM agent, and synthesizes a spoken reply.
-> 5. Replies are encoded as 24 kbps Opus and played back on the watch over the same BLE link.
-> 6. A procedural C++ ball avatar renders 15 expressions without any image assets.
-> 7. Button A controls push-to-talk and playback interruption; button B cycles the backend agent.
-> 8. Power-saving measures include CPU DFS at 160/80 MHz, BLE modem sleep, and on-demand codec/amplifier power.
-> 9. The phone and a PC must remain available, and the default ASR path is cloud-based.
-> 10. Code is MIT-licensed; the ball character data follows the non-commercial Emotion Ball Community License.
 
 M5Stack Qiuqiu（球球）把 M5Stack StopWatch 手表改造成一个随身语音助手：在球球界面按住 A 说话，松手后由手机和电脑完成语音识别、Agent 推理与语音合成，回答从手表喇叭播出。手表负责采集、播放和交互，高负载计算全部留在手机与电脑侧。
 
@@ -457,6 +446,6 @@ App 支持三种地址来源：局域网地址、DDNS 域名、本机回环（�
 - 当前版本 `0.1.0`，对应 [`CHANGELOG.md`](CHANGELOG.md)。
 - 端到端链路已在真机跑通：按住 A 说话、松手、识别、Agent 回复、手表播放。
 - 播放打断、B 键切换、语音切换、充电灯、电池 CSV 导出均已接入。
-- 续航测试仍在进行，当前预期 25–35 小时，尚无最终实测值。
+- 续航仍在测试；最新真机实测约 **12–13 小时**（熄屏、BLE 保连，见 9.1），3–4 天的目标取决于 light sleep 能否落地。
 - 未验证或未完成：长期稳定性、24 kbps 下行的抓包验证、多手机并发、iOS 客户端、量产测试与 OTA 升级。
 - 首次部署以 [`docs/01-quickstart.md`](docs/01-quickstart.md) 的步骤为准，遇到与本文不一致的地方以代码和该文档为准。
