@@ -1,5 +1,13 @@
 # M5Stack Qiuqiu（球球）
 
+
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Web Flasher](https://img.shields.io/badge/flash-in%20browser-brightgreen)](https://wen0531.github.io/m5stack-qiuqiu/flasher/)
+[![Latest release](https://img.shields.io/github/v/release/wen0531/m5stack-qiuqiu)](https://github.com/wen0531/m5stack-qiuqiu/releases)
+
+> **一键刷机**：手机或电脑打开 <https://wen0531.github.io/m5stack-qiuqiu/flasher/>，
+> USB 连接手表即可在浏览器里刷入，无需安装工具链。
+
 > 作者：wen0531 · 2026 · 代码 MIT，球球形象遵循 Emotion Ball 社区许可（非商业）
 
 > **English Summary**
