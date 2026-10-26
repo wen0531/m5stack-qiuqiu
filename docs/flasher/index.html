@@ -1,33 +1,297 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Qiuqiu 手表固件刷写</title>
-  <script type="module" src="https://unpkg.com/esp-web-tools@10/dist/web/install-button.js?module"></script>
-  <style>
-    body { font-family: system-ui, sans-serif; max-width: 640px; margin: 60px auto; padding: 0 20px; }
-    h1 { font-size: 1.6rem; }
-    .box { border: 1px solid #ddd; border-radius: 12px; padding: 24px; margin: 24px 0; }
-    esp-web-install-button { display: inline-block; }
-    code { background: #f5f5f5; padding: 2px 6px; border-radius: 4px; }
-    .warn { color: #b00; }
-  </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Qiuqiu Firmware Flasher</title>
+<script type="module" src="https://unpkg.com/esp-web-tools@10/dist/web/install-button.js?module"></script>
+<style>
+  :root { --bg:#0b0c0e; --panel:#15171a; --line:#262a30; --text:#e8eaed; --dim:#8b9098; --accent:#4ea1ff; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font-family: -apple-system, "Segoe UI", "PingFang SC",
+         "Microsoft YaHei", "Hiragino Sans", system-ui, sans-serif; line-height:1.6; }
+  main { max-width: 680px; margin: 0 auto; padding: 40px 20px 60px; }
+  .top { display:flex; justify-content:space-between; align-items:center; gap:16px; }
+  h1 { font-size: 1.5rem; margin:0; }
+  select { background:var(--panel); color:var(--text); border:1px solid var(--line); border-radius:8px;
+           padding:7px 10px; font-size:14px; }
+  .box { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:22px; margin:22px 0; }
+  .box h2 { font-size:1rem; margin:0 0 12px; color:var(--dim); font-weight:600; letter-spacing:.03em; }
+  ol, ul { margin:0; padding-left:22px; }
+  li { margin:6px 0; }
+  code { background:#0d0f11; padding:2px 6px; border-radius:4px; font-size:.9em; }
+  .warn { color:#ffb4b4; }
+  .row { display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-top:14px; }
+  esp-web-install-button { display:inline-block; }
+  a.btn, .btn { display:inline-block; background:#1e2126; color:var(--text); border:1px solid var(--line);
+                border-radius:9px; padding:9px 14px; text-decoration:none; font-size:14px; }
+  a.btn:hover { border-color:var(--accent); }
+  .muted { color:var(--dim); font-size:13px; }
+  footer { color:var(--dim); font-size:12px; margin-top:34px; }
+  .lang-note { font-size:12px; color:var(--dim); margin-top:8px; }
+</style>
 </head>
 <body>
-  <h1>M5Stack Qiuqiu 固件刷写</h1>
+<main>
+  <div class="top">
+    <h1 id="title">M5Stack Qiuqiu Firmware Flasher</h1>
+    <select id="lang" aria-label="Language"></select>
+  </div>
+  <p class="muted" id="subtitle"></p>
 
   <div class="box">
-    <p><strong>需要：</strong>桌面版 Chrome / Edge（不支持 Safari、Firefox），一根能传数据的 USB-C 线。</p>
-    <ol>
-      <li>用 USB-C 线把手表连到电脑</li>
-      <li>点击下面的按钮，选择串口</li>
-      <li>等待 1–2 分钟，看到 "Done" 后拔插一次 USB</li>
-    </ol>
-    <p class="warn">刷写会覆盖手表上的固件，请先确认你不需要原厂数据。</p>
-    <esp-web-install-button manifest="manifest.json"></esp-web-install-button>
+    <h2 id="reqTitle">Requirements</h2>
+    <p id="req"></p>
+    <h2 id="stepsTitle">Steps</h2>
+    <ol id="steps"></ol>
+    <p class="warn" id="warn"></p>
+    <div class="row">
+      <esp-web-install-button manifest="manifest.json"></esp-web-install-button>
+    </div>
+    <p class="lang-note" id="componentNote"></p>
   </div>
 
-  <p>没有出现按钮？请用 Chrome 打开，并确认浏览器支持 Web Serial。</p>
+  <div class="box">
+    <h2 id="downloadTitle">Manual download</h2>
+    <div class="row">
+      <a class="btn" href="StopWatch-UserDemo.bin" download>StopWatch-UserDemo.bin</a>
+      <a class="btn" href="bootloader.bin" download>bootloader.bin</a>
+      <a class="btn" href="partition-table.bin" download>partition-table.bin</a>
+    </div>
+    <p class="muted" id="cmdNote" style="margin-top:12px"></p>
+    <pre style="overflow:auto; background:#0d0f11; border:1px solid var(--line); border-radius:10px; padding:12px; font-size:12px"><code>esptool --chip esp32s3 -p /dev/ttyACM0 -b 460800 \
+  write-flash 0x0 bootloader.bin \
+              0x8000 partition-table.bin \
+              0x20000 StopWatch-UserDemo.bin</code></pre>
+  </div>
+
+  <footer>
+    <span id="footer"></span>
+  </footer>
+</main>
+
+<script>
+const LANG_NAMES = {
+  "en": "English", "zh-Hans": "简体中文", "zh-Hant": "繁體中文", "ja": "日本語", "ko": "한국어",
+  "fr": "Français", "de": "Deutsch", "es": "Español", "ru": "Русский", "la": "Latina"
+};
+
+const I18N = {
+  "en": {
+    title: "M5Stack Qiuqiu Firmware Flasher",
+    subtitle: "Flash the voice-assistant firmware straight from your browser — no toolchain needed.",
+    reqTitle: "Requirements",
+    req: "Desktop Chrome or Edge (Safari and Firefox do not support Web Serial), and a USB-C cable that carries data.",
+    stepsTitle: "Steps",
+    steps: ["Connect the watch to your computer with the USB-C cable",
+            "Click the button below and pick the serial port",
+            "Wait 1–2 minutes until it says Done, then unplug and replug once"],
+    warn: "Flashing overwrites the firmware on the watch. Back up anything you still need first.",
+    componentNote: "The button and its dialog come from esp-web-tools and stay in English.",
+    downloadTitle: "Manual download",
+    cmdNote: "Or flash from the command line:",
+    footer: "Code MIT · avatar assets follow the upstream non-commercial licence"
+  },
+  "zh-Hans": {
+    title: "M5Stack 球球固件刷写",
+    subtitle: "直接在浏览器里刷入语音助手固件，不用安装任何工具链。",
+    reqTitle: "需要什么",
+    req: "桌面版 Chrome 或 Edge（Safari、Firefox 不支持 Web Serial），以及一根能传数据的 USB-C 线。",
+    stepsTitle: "步骤",
+    steps: ["用 USB-C 线把手表连到电脑",
+            "点击下面的按钮，选择串口",
+            "等待 1–2 分钟，看到 Done 后拔插一次 USB"],
+    warn: "刷写会覆盖手表上的固件，请先确认你不需要原厂数据。",
+    componentNote: "按钮和弹窗来自 esp-web-tools，文字固定为英文。",
+    downloadTitle: "手动下载",
+    cmdNote: "或者用命令行刷写：",
+    footer: "代码 MIT · 头像素材沿用上游非商业许可"
+  },
+  "zh-Hant": {
+    title: "M5Stack 球球韌體刷寫",
+    subtitle: "直接在瀏覽器裡刷入語音助理韌體，不需要安裝工具鏈。",
+    reqTitle: "需要什麼",
+    req: "桌面版 Chrome 或 Edge（Safari、Firefox 不支援 Web Serial），以及一條能傳資料的 USB-C 線。",
+    stepsTitle: "步驟",
+    steps: ["用 USB-C 線把手錶連到電腦",
+            "點擊下面的按鈕，選擇序列埠",
+            "等待 1–2 分鐘，看到 Done 後拔插一次 USB"],
+    warn: "刷寫會覆蓋手錶上的韌體，請先確認你不需要原廠資料。",
+    componentNote: "按鈕與彈窗來自 esp-web-tools，文字固定為英文。",
+    downloadTitle: "手動下載",
+    cmdNote: "或者用命令列刷寫：",
+    footer: "程式碼 MIT · 頭像素材沿用上游非商業授權"
+  },
+  "ja": {
+    title: "M5Stack Qiuqiu ファームウェア書き込み",
+    subtitle: "ブラウザから直接書き込めます。ツールチェーンのインストールは不要です。",
+    reqTitle: "必要なもの",
+    req: "デスクトップ版 Chrome または Edge（Safari / Firefox は Web Serial 非対応）と、データ通信対応の USB-C ケーブル。",
+    stepsTitle: "手順",
+    steps: ["USB-C ケーブルで時計を PC に接続",
+            "下のボタンを押してシリアルポートを選択",
+            "1〜2 分待ち、Done と表示されたら USB を抜き差し"],
+    warn: "書き込みは時計のファームウェアを上書きします。必要なデータは先に退避してください。",
+    componentNote: "ボタンとダイアログは esp-web-tools 製のため英語表記です。",
+    downloadTitle: "手動ダウンロード",
+    cmdNote: "またはコマンドラインで書き込み：",
+    footer: "コードは MIT · アバター素材は上流の非商用ライセンスに従います"
+  },
+  "ko": {
+    title: "M5Stack Qiuqiu 펌웨어 플래싱",
+    subtitle: "브라우저에서 바로 펌웨어를 씁니다. 툴체인 설치가 필요 없습니다.",
+    reqTitle: "필요한 것",
+    req: "데스크톱 Chrome 또는 Edge(Safari·Firefox는 Web Serial 미지원), 데이터 전송이 되는 USB-C 케이블.",
+    stepsTitle: "절차",
+    steps: ["USB-C 케이블로 시계를 컴퓨터에 연결",
+            "아래 버튼을 눌러 시리얼 포트 선택",
+            "1~2분 기다려 Done이 나오면 USB를 한 번 뺐다 꽂기"],
+    warn: "플래싱은 시계의 펌웨어를 덮어씁니다. 필요한 데이터는 먼저 백업하세요.",
+    componentNote: "버튼과 대화상자는 esp-web-tools에서 오며 영어로 표시됩니다.",
+    downloadTitle: "수동 다운로드",
+    cmdNote: "또는 명령줄로 플래싱:",
+    footer: "코드는 MIT · 아바타 소재는 상위 비상업 라이선스를 따릅니다"
+  },
+  "fr": {
+    title: "Flashage du firmware M5Stack Qiuqiu",
+    subtitle: "Flashez le firmware de l'assistant vocal directement depuis le navigateur, sans outillage.",
+    reqTitle: "Prérequis",
+    req: "Chrome ou Edge pour ordinateur (Safari et Firefox ne prennent pas en charge Web Serial) et un câble USB-C de données.",
+    stepsTitle: "Étapes",
+    steps: ["Branchez la montre à l'ordinateur avec le câble USB-C",
+            "Cliquez sur le bouton ci-dessous et choisissez le port série",
+            "Attendez 1–2 minutes jusqu'à « Done », puis débranchez et rebranchez"],
+    warn: "Le flashage écrase le firmware de la montre. Sauvegardez ce dont vous avez besoin.",
+    componentNote: "Le bouton et sa boîte de dialogue viennent d'esp-web-tools et restent en anglais.",
+    downloadTitle: "Téléchargement manuel",
+    cmdNote: "Ou en ligne de commande :",
+    footer: "Code MIT · ressources d'avatar sous licence non commerciale amont"
+  },
+  "de": {
+    title: "M5Stack Qiuqiu Firmware flashen",
+    subtitle: "Firmware direkt im Browser flashen – ohne Toolchain.",
+    reqTitle: "Voraussetzungen",
+    req: "Chrome oder Edge auf dem Desktop (Safari und Firefox unterstützen Web Serial nicht) und ein USB-C-Datenkabel.",
+    stepsTitle: "Schritte",
+    steps: ["Uhr mit dem USB-C-Kabel an den Computer anschließen",
+            "Auf die Schaltfläche unten klicken und den seriellen Port wählen",
+            "1–2 Minuten warten, bis „Done“ erscheint, dann USB einmal trennen und neu verbinden"],
+    warn: "Das Flashen überschreibt die Firmware der Uhr. Vorher alles Nötige sichern.",
+    componentNote: "Schaltfläche und Dialog stammen von esp-web-tools und bleiben englisch.",
+    downloadTitle: "Manueller Download",
+    cmdNote: "Oder über die Kommandozeile:",
+    footer: "Code MIT · Avatar-Assets unter der vorgelagerten nicht-kommerziellen Lizenz"
+  },
+  "es": {
+    title: "Flashear firmware de M5Stack Qiuqiu",
+    subtitle: "Graba el firmware del asistente de voz directamente desde el navegador, sin instalar herramientas.",
+    reqTitle: "Requisitos",
+    req: "Chrome o Edge de escritorio (Safari y Firefox no admiten Web Serial) y un cable USB-C de datos.",
+    stepsTitle: "Pasos",
+    steps: ["Conecta el reloj al ordenador con el cable USB-C",
+            "Pulsa el botón de abajo y elige el puerto serie",
+            "Espera 1–2 minutos hasta que aparezca Done y reconecta el USB"],
+    warn: "Grabar sobrescribe el firmware del reloj. Haz copia de lo que necesites.",
+    componentNote: "El botón y su diálogo vienen de esp-web-tools y permanecen en inglés.",
+    downloadTitle: "Descarga manual",
+    cmdNote: "O graba desde la línea de comandos:",
+    footer: "Código MIT · recursos del avatar con licencia no comercial heredada"
+  },
+  "ru": {
+    title: "Прошивка M5Stack Qiuqiu",
+    subtitle: "Прошейте прошивку голосового помощника прямо из браузера — без установки инструментов.",
+    reqTitle: "Что нужно",
+    req: "Chrome или Edge для компьютера (Safari и Firefox не поддерживают Web Serial) и USB-C кабель с передачей данных.",
+    stepsTitle: "Шаги",
+    steps: ["Подключите часы к компьютеру кабелем USB-C",
+            "Нажмите кнопку ниже и выберите последовательный порт",
+            "Подождите 1–2 минуты до надписи Done, затем переподключите USB"],
+    warn: "Прошивка заменит ПО часов. Сначала сохраните всё нужное.",
+    componentNote: "Кнопка и диалог принадлежат esp-web-tools и остаются на английском.",
+    downloadTitle: "Ручная загрузка",
+    cmdNote: "Или прошейте из командной строки:",
+    footer: "Код MIT · материалы аватара по некоммерческой лицензии"
+  },
+  "la": {
+    title: "Firmware M5Stack Qiuqiu inscriptio",
+    subtitle: "Firmware adiutoris vocalis ex navigatro directo inscriptum, sine instrumentis.",
+    reqTitle: "Quae necessaria",
+    req: "Chrome vel Edge in computatro (Safari et Firefox Web Serial non sustinent) et funis USB-C qui data fert.",
+    stepsTitle: "Gradus",
+    steps: ["Horologium fune USB-C cum computatro coniunge",
+            "Butonem infra preme et portum serialem elige",
+            "1–2 minuta expecta donec Done appareat, deinde USB iterum coniunge"],
+    warn: "Inscriptio firmware in horologio delet. Prius quae tibi necessaria sunt serva.",
+    componentNote: "Buto et dialogus ex esp-web-tools veniunt et Anglice manent.",
+    downloadTitle: "Descriptio manualis",
+    cmdNote: "Vel in linea mandatorum:",
+    footer: "Codex MIT · imagines avatari sub licentia non commerciali"
+  }
+};
+
+const sel = document.getElementById("lang");
+Object.keys(LANG_NAMES).forEach(code => {
+  const o = document.createElement("option");
+  o.value = code; o.textContent = LANG_NAMES[code];
+  sel.appendChild(o);
+});
+
+function pickLang() {
+  const q = new URLSearchParams(location.search).get("lang");
+  if (q && I18N[q]) return q;
+  const saved = localStorage.getItem("qiuqiu-lang");
+  if (saved && I18N[saved]) return saved;
+  const nav = (navigator.languages || [navigator.language || "en"]).map(s => s.toLowerCase());
+  for (const l of nav) {
+    if (l.startsWith("zh")) return l.includes("tw") || l.includes("hk") || l.includes("hant") ? "zh-Hant" : "zh-Hans";
+    if (l.startsWith("ja")) return "ja";
+    if (l.startsWith("ko")) return "ko";
+    if (l.startsWith("fr")) return "fr";
+    if (l.startsWith("de")) return "de";
+    if (l.startsWith("es")) return "es";
+    if (l.startsWith("ru")) return "ru";
+    if (l.startsWith("la")) return "la";
+  }
+  return "en";
+}
+
+function apply(code) {
+  const t = I18N[code] || I18N.en;
+  document.documentElement.lang = code;
+  document.title = t.title;
+  document.getElementById("title").textContent = t.title;
+  document.getElementById("subtitle").textContent = t.subtitle;
+  document.getElementById("reqTitle").textContent = t.reqTitle;
+  document.getElementById("req").textContent = t.req;
+  document.getElementById("stepsTitle").textContent = t.stepsTitle;
+  document.getElementById("steps").innerHTML = t.steps.map(s => `<li>${s}</li>`).join("");
+  document.getElementById("warn").textContent = t.warn;
+  document.getElementById("componentNote").textContent = t.componentNote;
+  document.getElementById("downloadTitle").textContent = t.downloadTitle;
+  document.getElementById("cmdNote").textContent = t.cmdNote;
+  document.getElementById("footer").textContent = t.footer;
+  sel.value = code;
+  localStorage.setItem("qiuqiu-lang", code);
+  localiseComponent(code);
+}
+
+/* esp-web-tools renders its own <button>; rewrite its caption when possible */
+function localiseComponent(code) {
+  const L = { en:"Connect", "zh-Hans":"连接手表", "zh-Hant":"連接手錶", ja:"接続",
+              ko:"연결", fr:"Connecter", de:"Verbinden", es:"Conectar", ru:"Подключить", la:"Coniunge" };
+  const el = document.querySelector("esp-web-install-button");
+  if (!el) return;
+  const btn = el.shadowRoot && el.shadowRoot.querySelector("button");
+  if (btn && btn.dataset.qiuqiuLabel !== code) {
+    btn.textContent = L[code] || L.en;
+    btn.dataset.qiuqiuLabel = code;
+  }
+}
+
+sel.addEventListener("change", e => apply(e.target.value));
+apply(pickLang());
+setInterval(localiseComponent.bind(null, sel.value), 800);
+customElements.whenDefined("esp-web-install-button").then(() => localiseComponent(sel.value));
+</script>
 </body>
 </html>
