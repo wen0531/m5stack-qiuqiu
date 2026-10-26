@@ -6,6 +6,11 @@
 [![Web Flasher](https://img.shields.io/badge/flash-in%20browser-brightgreen)](https://wen0531.github.io/m5stack-qiuqiu/flasher/)
 [![Latest release](https://img.shields.io/github/v/release/wen0531/m5stack-qiuqiu)](https://github.com/wen0531/m5stack-qiuqiu/releases)
 
+## 演示视频
+
+https://github.com/user-attachments/assets/703d0c39-85b1-457b-94a9-4988d4ca6c22
+
+
 > **一键刷机**：手机或电脑打开 <https://wen0531.github.io/m5stack-qiuqiu/flasher/>，
 > USB 连接手表即可在浏览器里刷入，无需安装工具链。
 

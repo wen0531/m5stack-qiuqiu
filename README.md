@@ -4,7 +4,13 @@
 [![Web Flasher](https://img.shields.io/badge/flash-in%20browser-brightgreen)](https://wen0531.github.io/m5stack-qiuqiu/flasher/)
 [![Latest release](https://img.shields.io/github/v/release/wen0531/m5stack-qiuqiu)](https://github.com/wen0531/m5stack-qiuqiu/releases)
 
+
 **English** | [中文](README.zh-CN.md)
+
+## Demo
+
+https://github.com/user-attachments/assets/703d0c39-85b1-457b-94a9-4988d4ca6c22
+
 
 > **Flash in one click**: open <https://wen0531.github.io/m5stack-qiuqiu/flasher/> on a phone or computer,
 > connect the watch over USB and flash it in the browser — no toolchain required.
