@@ -82,6 +82,15 @@ SCENARIOS = {
         ("step 1200", None),
         ("shot", "launcher_ru.png"),
     ],
+    "button_zh": [
+        ("lang zh-Hans", None),
+        ("step 800", None),
+        ("open Settings", None),
+        ("step 2000", None),
+        ("tap 233 399", None),
+        ("step 2000", None),
+        ("shot", "button_zh.png"),
+    ],
     "settings_zh": [
         ("lang zh-Hans", None),
         ("step 800", None),
