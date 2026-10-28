@@ -168,6 +168,10 @@ public:
        silence the panel is put to real sleep (0x28 DISPOFF + 0x10 SLPIN), not
        just dimmed. Any later input wakes it again. */
     void markActivity();
+    int normalBrightness();   /* the level to restore to; never 0 */
+    /* Dim while the agent is thinking: the ball stays readable, the panel costs
+       a fraction. Restores the user brightness on wake/playback. */
+    void setThinkingDim(bool on);
     bool screen_off_active();
     void screenWake();
     void screenTick();   /* call from the main loop */
@@ -222,6 +226,10 @@ public:
     void powerInit(int max_mhz, int min_mhz, bool light_sleep);
     void powerBusy(const char* who);
     void powerIdle(const char* who);
+    uint32_t powerLightSleepCount();   /* automatic light-sleep entries since boot */
+    uint64_t powerSleepUs();           /* total time asleep since boot, microseconds */
+    void buttonWakeTask(void* task);   /* task poked on a button edge (ISR-safe) */
+    void ioe_tp_reset();               /* TP_RST pulse; the only way out of CST820 deep sleep */
     int getSpeakerVolume(bool loadFromSettings = false);
     int getAudioSampleRate();
     void audioRecord(std::vector<int16_t>& data, uint16_t durationMs, float gain = 30.0f);
@@ -317,7 +325,6 @@ private:
     void pmic_init();
     bool pmic_get_pwr_btn_state();
     void ioe_init();
-    void ioe_tp_reset();
     void ioe_speaker_enable(bool enable);
     void display_init();
     void touchpad_init();

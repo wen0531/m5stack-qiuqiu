@@ -9,6 +9,7 @@
 #include <cstdio>
 #include <cstring>
 #include <ctime>
+#include <mutex>
 #include <sys/time.h>
 #include <vector>
 #include <esp_heap_caps.h>
@@ -58,7 +59,47 @@ static bool btn_a_prev = false;   /* for edge detection: A interrupts playback *
 
 static volatile int s_state = VOICE_IDLE;
 static volatile bool g_playing = false;
-static bool s_session_active = false;   /* a turn holds the sleep gate */
+static TaskHandle_t  s_writer_task = nullptr;
+
+/* The audio path holds the PM gate only while a clip is really playing; the
+   pair is idempotent, so every exit path can simply call audio_gate_drop(). */
+static bool g_audio_gate = false;
+
+static void audio_gate_take()
+{
+    if (g_audio_gate) return;
+    g_audio_gate = true;
+    GetHAL().powerBusy("audio");
+}
+
+static void audio_gate_drop()
+{
+    if (!g_audio_gate) return;
+    g_audio_gate = false;
+    GetHAL().powerIdle("audio");
+}
+/* A turn holds the sleep gate. The voice task takes it, either task may drop
+   it, so the flag and the HAL gate must change under one lock: releasing the
+   flag and the gate in separate steps let a taken gate stay held for ever when
+   the two tasks interleaved. */
+static bool       s_session_active = false;
+static std::mutex s_session_mutex;
+
+static void session_gate_take()
+{
+    std::lock_guard<std::mutex> lock(s_session_mutex);
+    if (s_session_active) return;
+    s_session_active = true;
+    GetHAL().powerBusy("session");
+}
+
+static void session_gate_drop()
+{
+    std::lock_guard<std::mutex> lock(s_session_mutex);
+    if (!s_session_active) return;
+    s_session_active = false;
+    GetHAL().powerIdle("session");
+}
 /* A was pressed while a reply was playing: write_tick() drops the rest of the
    downlink (and drains the DMA with silence) until the next talk starts. */
 static volatile bool g_play_interrupt = false;
@@ -168,6 +209,7 @@ static void voice_task(void* arg)
     bool was_connected = false;
     uint32_t happy_until = 0;
     uint32_t think_until = 0;
+    bool     turn_waiting = false;   /* PTT released, waiting for the answer */
     uint32_t frames = 0;
 
     for (;;) {
@@ -222,7 +264,7 @@ static void voice_task(void* arg)
         GetHAL().audioIdleCheck();   /* close the codec after 30 s of silence */
         bool want = (ptt_pressed(now) || ble_svc_remote_talk()) && connected;
         if (want && !talking) {
-            if (!s_session_active) { s_session_active = true; GetHAL().powerBusy("session"); }
+            session_gate_take();
             adpcm_reset(&st);
             seq = 0;
             talking = true;
@@ -233,13 +275,18 @@ static void voice_task(void* arg)
                 ring_flush();
             }
             ble_svc_set_audio_mode(true);
+            GetHAL().setThinkingDim(false);   /* full brightness while talking */
             ble_svc_status_notify(0x10);
             ESP_LOGI(TAG, "PTT start");
         } else if (!want && talking) {
             talking = false;
-            think_until = now + 30000;   /* keep the panel awake while the agent answers */
-            /* the gate stays held until the answer has played (or timed out) */
-            if (!g_playing) ble_svc_set_audio_mode(false);
+            think_until   = now + 90000;   /* keep the panel awake while the agent answers */
+            turn_waiting  = true;
+            /* The gate stays held until the answer has played (or timed out).
+               Keep the fast connection tier too: dropping back to the slow tier
+               here stalls the first packets of the reply. And dim, so a slow
+               answer costs a fraction of a full-brightness panel. */
+            GetHAL().setThinkingDim(true);
             ble_svc_status_notify(0x11);
             ESP_LOGI(TAG, "PTT stop (frames=%lu)", (unsigned long)frames);
         }
@@ -284,10 +331,14 @@ static void voice_task(void* arg)
                          (unsigned long)epoch, lt.tm_year + 1900, lt.tm_mon + 1, lt.tm_mday, lt.tm_hour,
                          lt.tm_min, lt.tm_sec);
             }
-            if (s_session_active && !talking && !g_playing &&
-                (int32_t)(now - think_until) > 0) {
-                s_session_active = false;
-                GetHAL().powerIdle("session");
+            /* Turn end: only once per turn. Without the flag this fired every
+               loop and hammered ble_gap_update_params (EBUSY -> 30 ms of param
+               renegotiation, which is what kept the phone from connecting). */
+            if (turn_waiting && !talking && !g_playing && (int32_t)(now - think_until) > 0) {
+                turn_waiting = false;
+                session_gate_drop();   /* no-op unless this turn still holds it */
+                GetHAL().setThinkingDim(false);
+                ble_svc_set_audio_mode(false);
             }
             if (g_playing && !g_play_interrupt) {
                 s_state = VOICE_SPEAKING;
@@ -300,7 +351,39 @@ static void voice_task(void* arg)
             } else {
                 s_state = VOICE_IDLE;
             }
-            vTaskDelay(pdMS_TO_TICKS(30));   /* idle: 30 ms keeps quick B-key presses */
+            ble_svc_adv_kick();   /* self-heal: keep the phone able to find us */
+
+            /* Connect on demand: the watch is only visible while it is being
+               used. Once it has been dark for 30 s the link is dropped and the
+               radio stops advertising entirely, so the chip sleeps without any
+               periodic radio wake-up; the phone's pending autoConnect fires the
+               moment a tap makes us visible again. */
+            {
+                static uint32_t s_dark_since = 0;
+                static bool     s_visible    = true;
+                if (!GetHAL().screen_off_active()) {
+                    s_dark_since = 0;
+                    if (!s_visible) {
+                        s_visible = true;
+                        ble_svc_set_discoverable(true);
+                        ESP_LOGI(TAG, "in use: radio visible again");
+                    }
+                } else {
+                    if (s_dark_since == 0) s_dark_since = now;
+                    if (s_visible && (now - s_dark_since) > 30000) {
+                        s_visible = false;
+                        ble_svc_set_discoverable(false);
+                        ble_svc_drop_link();
+                        ESP_LOGI(TAG, "idle: radio off (hidden, link dropped)");
+                    }
+                }
+            }
+
+            /* 30 ms while lit keeps short presses from being missed. With the
+               panel dark there is no PTT to start (a press wakes the screen
+               first), so back off to 200 ms: this is the shortest periodic wake
+               source when idle and it decides the size of each sleep chunk. */
+            vTaskDelay(pdMS_TO_TICKS(GetHAL().screen_off_active() ? 200 : 30));
             continue;
         }
 
@@ -553,11 +636,9 @@ void write_tick()
             abort_silence++;
         }
         g_playing = false;
-        GetHAL().powerIdle("audio");
-        if (s_session_active) {           /* interrupted: the turn is over */
-            s_session_active = false;
-            GetHAL().powerIdle("session");
-        }
+        audio_gate_drop();
+        session_gate_drop();              /* interrupted: the turn is over */
+        GetHAL().setThinkingDim(false);
         last_data_ms = 0;
         started = false;
         return;
@@ -575,7 +656,9 @@ void write_tick()
             }
             started = true;
             g_playing = true;
-            GetHAL().powerBusy("audio");
+            audio_gate_take();
+            GetHAL().setThinkingDim(false);   /* the answer is here: full brightness */
+            GetHAL().markActivity();          /* and the panel is awake to show it */
             fade_in_left = 882;             /* 20 ms fade-in */
             ble_svc_set_audio_mode(true);
             ble_svc_status_notify(0x12);
@@ -615,6 +698,8 @@ void write_tick()
         started = false;
         underrun_ms = 0;
         g_playing = false;
+        audio_gate_drop();          /* leak here used to forbid sleep forever */
+        GetHAL().setThinkingDim(false);
         if (saved_spk_vol >= 0) { GetHAL().setSpeakerVolume(saved_spk_vol); saved_spk_vol = -1; }
         ble_svc_set_audio_mode(false);
         ble_svc_status_notify(0x13);
@@ -647,7 +732,10 @@ static void downlink_writer_task(void* arg)
     (void)arg;
     for (;;) {
         write_tick();
-        vTaskDelay(pdMS_TO_TICKS(20));   /* idle downlink poll (20 ms: 60 ms causes underruns) */
+        /* 20 ms cadence while an answer streams (60 ms underruns). Idle: block
+           on the PCM-ready / packet notifications; the 500 ms timeout is only a
+           safety net, so the quiet cadence is 500 ms, not 20 ms. */
+        ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(g_playing ? 20 : 500));
     }
 }
 
@@ -667,13 +755,18 @@ static void downlink_task(void* arg)
     }
     g_head = g_tail = 0;
 
+    ble_svc_bind_downlink_tasks((void*)xTaskGetCurrentTaskHandle(), (void*)s_writer_task);
     for (;;) {
         uint8_t pkt[512];
         size_t len = 0;
-        if (!ble_svc_take_downlink(pkt, sizeof(pkt), &len) || len < 6) {
-            vTaskDelay(pdMS_TO_TICKS(2));
+        if (!ble_svc_take_downlink(pkt, sizeof(pkt), &len)) {
+            /* Block until the BLE write callback pokes us. The old 2 ms spin
+               made xExpectedIdleTime < 8 ticks, so automatic light sleep never
+               started at all; the 1 s timeout only covers a lost notification. */
+            ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(1000));
             continue;
         }
+        if (len < 6) continue;   /* malformed: drop it, keep draining the ring */
         if (pkt[2] != 0 && pkt[2] != 1 && pkt[2] != 2) continue;
         /* playback was interrupted: swallow late reply frames until the next
            talk starts so the ring cannot refill behind the mute */
@@ -697,6 +790,10 @@ static void downlink_task(void* arg)
         }
         g_last_pkt = GetHAL().millis();
         ring_push(inbuf, nsamp);
+        /* PCM is playable now. Waking the writer on packet arrival alone is not
+           the same thing: it could run before the decode and go back to sleep
+           with a full ring and no further event coming. */
+        if (s_writer_task) xTaskNotifyGive(s_writer_task);
     }
 }
 
@@ -712,7 +809,7 @@ extern "C" void voice_start(void)
     if (xTaskCreate(voice_task, "voice", 8192, NULL, 5, NULL) != pdPASS) {
         ESP_LOGE(TAG, "voice task create failed");
     }
-    if (xTaskCreate(downlink_writer_task, "dl_writer", 4096, NULL, 7, NULL) != pdPASS) {
+    if (xTaskCreate(downlink_writer_task, "dl_writer", 4096, NULL, 7, &s_writer_task) != pdPASS) {
         ESP_LOGE(TAG, "downlink writer create failed");
     }
     /* Opus decoding needs a deep stack; keep it in PSRAM so internal RAM stays free. */

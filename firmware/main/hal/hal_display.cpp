@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: MIT
  */
 #include "hal.h"
+#include <esp_log.h>
 #include <esp_timer.h>
 #include "utils/settings/settings.h"
 #include <mooncake_log.h>
@@ -130,7 +131,9 @@ public:
         return true;
     }
 
-    /* real AMOLED power commands (the framebuffer panel's setSleep() is a no-op) */
+    /* Base-panel sleep: DISPOFF(0x28) then Panel_AMOLED::setSleep(true) which
+       itself sends SLPIN(0x10). Wake is setSleep(false) = SLPOUT(0x11) + 150 ms,
+       then DISPON(0x29). Do not send 0x10/0x11 here as well. */
     void panelSleepIn() { _panel_instance.write_cmd(0x28); _panel_instance.setSleep(true); }
     void panelSleepOut() { _panel_instance.setSleep(false); _panel_instance.write_cmd(0x29); }
 
@@ -223,19 +226,55 @@ void Hal::setBackLightBrightness(int brightness, bool saveToSettings)
 /*                            Unified screen power                            */
 /* -------------------------------------------------------------------------- */
 
+#include "drivers/cst820/cst820.h"
+
 static void lvgl_tick_set_enabled(bool on);   /* defined below */
 static lv_indev_t* lvTouchpad = nullptr;      /* file scope: the idle task polls it */
+static std::unique_ptr<Cst820> _cst820;       /* file scope: screen power parks it */
 
 namespace {
 volatile uint32_t g_last_activity_ms = 0;
 volatile bool g_screen_off = false;
 constexpr uint32_t SCREEN_IDLE_MS = 5000;
+/* A tap keeps waking the watch for a minute after it dims. After that the touch
+   controller itself is parked (0xE5=0x03, ~1.9 mA) and only the buttons wake
+   it; polling a parked controller would just hang on the I2C bus. */
+constexpr uint32_t TOUCH_PARK_AFTER_MS = 60000;
+/* Desk mode: on external power the watch never goes dark, so the display gate
+   keeps light sleep off and the BLE radio keeps advertising (reachable + always
+   flashable). Dimmed rather than bright, or a long charge would bake the panel. */
+constexpr uint32_t USB_POLL_MS = 500;   /* PMIC read is I2C; do not spam it */
+bool     g_usb_present = false;
+uint32_t g_usb_check_ms = 0;
+
+/* Panel brightness only: _bl_brightness stays the user's setting. pct < 0 means
+   "back to the user brightness". */
+void apply_brightness(int pct)
+{
+    if (_display == nullptr || g_screen_off) return;
+    if (!GetHAL().lvglLock()) return;
+    const int level = (pct < 0) ? GetHAL().normalBrightness() : pct;
+    _display->setBrightness(uitk::map_range(uitk::clamp(level, 0, 100), 0, 100, 0, 255));
+    GetHAL().lvglUnlock();
+}
+
+bool usb_powered_cached(uint32_t now)
+{
+    if (g_usb_check_ms == 0 || (now - g_usb_check_ms) > USB_POLL_MS) {
+        g_usb_check_ms = now;
+        g_usb_present  = GetHAL().usbPowerPresent();
+    }
+    return g_usb_present;
+}
+uint32_t g_dark_since_ms               = 0;
+bool     g_touch_asleep                = false;
 
 void screen_sleep_now(const char* reason)
 {
     if (g_screen_off) return;
     GetHAL().lvglLock();          /* serialise with the LVGL render task */
-    g_screen_off = true;
+    g_screen_off    = true;
+    g_dark_since_ms = (uint32_t)(esp_timer_get_time() / 1000);
     /* real panel sleep: display off + sleep in (framebuffer panel's own
        setSleep() is a no-op, so drive the base panel command directly) */
     _display->setBrightness(0);
@@ -258,6 +297,14 @@ void screen_wake_now(int brightness)
     GetHAL().lvglLock();
     g_screen_off = false;
     _display->panelSleepOut();            /* 0x11 SLPOUT + 150 ms, 0x29 DISPON */
+    if (_cst820 && g_touch_asleep) {
+        /* CST820 only leaves deep sleep through the reset pin (datasheet), and
+           it needs >= 100 ms before the first I2C access. Only resume reading
+           once the chip answers again. */
+        GetHAL().ioe_tp_reset();
+        g_touch_asleep = !_cst820->ping();
+        mclog::tagInfo("HAL-Display", "touch {}", g_touch_asleep ? "still parked" : "unparked");
+    }
     _display->setBrightness(uitk::map_range(uitk::clamp(brightness, 0, 100), 0, 100, 0, 255));
     lv_obj_invalidate(lv_screen_active());
     mclog::tagInfo("HAL-Display", "screen on");
@@ -270,17 +317,41 @@ void Hal::markActivity()
     g_last_activity_ms = (uint32_t)(esp_timer_get_time() / 1000);
 }
 
+void Hal::setThinkingDim(bool on)
+{
+    if (g_screen_off || _display == nullptr) return;   /* dark is already dark */
+    apply_brightness(on ? 10 : -1);
+    mclog::tagInfo("HAL-Display", "thinking dim {}", on ? "on" : "off");
+}
+
 /* Runs in the main loop (same context as app rendering): performs the actual
    panel sleep/wake I/O so it can never race another SPI writer. */
 void Hal::screenTick()
 {
     if (g_last_activity_ms == 0) return;
-    const uint32_t now = (uint32_t)(esp_timer_get_time() / 1000);
+    const uint32_t now  = (uint32_t)(esp_timer_get_time() / 1000);
     const uint32_t idle = now - g_last_activity_ms;
+
+    /* Desk mode: plugged in -> never dark. Keeps the radio up (advertising
+       survives, flashing never races a sleeping USB-JTAG) and spares the battery
+       because the power comes from the cable. */
+    if (usb_powered_cached(now)) {
+        if (g_screen_off) screen_wake_now(_bl_last_nonzero);
+        return;                       /* never idle out while charging */
+    }
 
     if (g_screen_off) {
         if (idle < SCREEN_IDLE_MS) {
             screen_wake_now(_bl_last_nonzero);
+        } else if (_cst820 && !g_touch_asleep && (now - g_dark_since_ms) > TOUCH_PARK_AFTER_MS) {
+            /* Park under the LVGL lock: the render task checks the same flag
+               while holding it, so no read can land on a sleeping controller. */
+            bool parked = false;
+            GetHAL().lvglLock();
+            parked = _cst820->sleep();
+            if (parked) g_touch_asleep = true;
+            GetHAL().lvglUnlock();
+            if (parked) mclog::tagInfo("HAL-Display", "touch parked");
         }
     } else if (idle > SCREEN_IDLE_MS) {
         screen_sleep_now("idle");
@@ -297,11 +368,20 @@ void Hal::screenWake()
     markActivity();   /* the main loop's screenTick() performs the wake */
 }
 
+/* The level to come back to. Qiuqiu drives the panel to 0 on its own while it
+   thinks the screen is asleep, which used to make "restore brightness" restore
+   a black screen. _bl_last_nonzero is the last level that was actually lit. */
+int Hal::normalBrightness()
+{
+    const int v = (_bl_last_nonzero > 0) ? _bl_last_nonzero : _bl_brightness;
+    return uitk::clamp(v, 10, 100);
+}
+
 int Hal::getBackLightBrightness(bool loadFromSettings)
 {
     if (loadFromSettings) {
         Settings settings(std::string(Hal::SettingsNs), false);
-        _bl_brightness = settings.GetInt("bl_lev", 80);
+        _bl_brightness = settings.GetInt("bl_lev", 50);
         _bl_brightness = uitk::clamp(_bl_brightness, 10, 100);
         mclog::tagInfo(_tag, "brightness loaded from settings: {}", _bl_brightness);
     }
@@ -311,9 +391,6 @@ int Hal::getBackLightBrightness(bool loadFromSettings)
 /* -------------------------------------------------------------------------- */
 /*                                  Touchpad                                  */
 /* -------------------------------------------------------------------------- */
-#include "drivers/cst820/cst820.h"
-
-static std::unique_ptr<Cst820> _cst820;
 
 void Hal::touchpad_init()
 {
@@ -379,15 +456,15 @@ static void lvgl_rtos_task(void *pvParameter)
         /* while the panel sleeps, do not render: saves the biggest chunk */
         if (_lvgl_update_enabled && pdTRUE == xSemaphoreTake(xGuiSemaphore, portMAX_DELAY)) {
             if (g_screen_off) {
-                /* no rendering while dark, but the touch panel still has to be
-                   polled or a tap can never wake the watch */
-                lv_indev_read(lvTouchpad);
+                /* no rendering while dark; the panel is still polled so a tap
+                   wakes the watch, until the controller is parked */
+                if (!g_touch_asleep) lv_indev_read(lvTouchpad);
             } else {
                 lv_timer_handler();
             }
             xSemaphoreGive(xGuiSemaphore);
         }
-        vTaskDelay(pdMS_TO_TICKS(g_screen_off ? 60 : 10));
+        vTaskDelay(pdMS_TO_TICKS(g_screen_off ? 200 : 10));
     }
 }
 

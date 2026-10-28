@@ -45,9 +45,16 @@ public:
     }
 
     /**
-     * @brief Put the device into sleep mode
+     * @brief Put the device into deep sleep (0xE5 = 0x03). Recovery needs the
+     *        reset pin; there is no documented software wake.
+     * @return false if the I2C write failed
      */
-    void sleep();
+    bool sleep();
+
+    /**
+     * @brief Check that the controller answers (used after a hardware reset).
+     */
+    bool ping();
 
 private:
     i2c_master_dev_handle_t _i2c_dev = nullptr;
@@ -57,6 +64,7 @@ private:
     uint16_t _y         = 0;
     bool _pressed       = false;
     uint8_t _finger_num = 0;
+    bool _asleep        = false;
 
     // Internal state
     uint8_t _chip_id  = 0;

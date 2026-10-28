@@ -33,16 +33,16 @@ void Hal::imu_init()
 
 void Hal::updateImuData()
 {
-    if (_imu_sensor != NULL) {
-        int available = 0;
-        if (bmi270_bmm150_sensor_acceleration_available(_imu_sensor, &available) == ESP_OK && available > 0) {
-            bmi270_bmm150_sensor_read_acceleration(_imu_sensor, &_imu_data.accelY, &_imu_data.accelX,
-                                                   &_imu_data.accelZ);
-        }
-        if (bmi270_bmm150_sensor_gyroscope_available(_imu_sensor, &available) == ESP_OK && available > 0) {
-            bmi270_bmm150_sensor_read_gyroscope(_imu_sensor, &_imu_data.gyroY, &_imu_data.gyroX, &_imu_data.gyroZ);
-        }
-    } else {
-        mclog::tagError(_tag, "imu invalid");
+    /* Lazy bring-up: nothing reads the IMU at boot, and leaving it in normal
+       mode costs about 1 mA around the clock. */
+    if (_imu_sensor == NULL) imu_init();
+    if (_imu_sensor == NULL) return;
+
+    int available = 0;
+    if (bmi270_bmm150_sensor_acceleration_available(_imu_sensor, &available) == ESP_OK && available > 0) {
+        bmi270_bmm150_sensor_read_acceleration(_imu_sensor, &_imu_data.accelY, &_imu_data.accelX, &_imu_data.accelZ);
+    }
+    if (bmi270_bmm150_sensor_gyroscope_available(_imu_sensor, &available) == ESP_OK && available > 0) {
+        bmi270_bmm150_sensor_read_gyroscope(_imu_sensor, &_imu_data.gyroY, &_imu_data.gyroX, &_imu_data.gyroZ);
     }
 }

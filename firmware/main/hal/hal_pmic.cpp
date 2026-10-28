@@ -62,7 +62,7 @@ void update_bat_level_from_mv(uint16_t millivolts)
 }
 
 /* The USB-C port has a NeoPixel on the PMIC: green while external power is
-   present, dark on battery. */
+   present, dark on battery (requested by Wen). */
 static void update_charge_led(bool external_power)
 {
     static int last = -1;

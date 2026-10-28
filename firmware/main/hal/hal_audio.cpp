@@ -133,7 +133,7 @@ public:
     {
         std::lock_guard<std::mutex> lock(_mutex);
         if (!_codec_open || _codec_dev == nullptr) return;
-        if ((esp_timer_get_time() / 1000) - _last_use_ms < 30000) return;
+        if ((esp_timer_get_time() / 1000) - _last_use_ms < 10000) return;
         esp_codec_dev_close(_codec_dev);
         _codec_open = false;
         GetHAL().setSpeakerAmp(false);          /* class-D amp idles at several mA */

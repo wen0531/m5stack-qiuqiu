@@ -33,6 +33,20 @@ bool ble_svc_started(void);
 /* connected and audio notifications subscribed */
 bool ble_svc_ready(void);
 
+/* A peripheral that is neither connected nor advertising is invisible to the
+ * phone for ever, so the voice loop nudges this every few seconds. Returns how
+ * many times advertising had to be restarted (0 = it never died). */
+void ble_svc_adv_kick(void);
+
+/* Connect-on-demand: only advertise while the watch is actually being used.
+ * Idle means no advertising and no link, so the radio is completely off and
+ * the chip can sleep in long chunks; the phone's pending autoConnect fires as
+ * soon as advertising resumes. */
+void ble_svc_set_discoverable(bool on);
+void ble_svc_drop_link(void);
+uint32_t ble_svc_adv_restarts(void);
+int32_t ble_svc_adv_last_rc(void);
+
 /* last talk state requested over the control characteristic */
 bool ble_svc_remote_talk(void);
 
@@ -56,6 +70,11 @@ void ble_svc_set_audio_mode(bool fast);
 /* PC -> device audio downlink: the audio characteristic also accepts writes
  * (same packet layout). Frames are queued for the playback task. */
 bool ble_svc_take_downlink(uint8_t *pkt, size_t max_len, size_t *out_len);
+
+/* Bind the tasks that drain the downlink ring so the BLE write callback can
+ * wake them. Polling them (2 ms) kept the predicted idle window below the light
+ * sleep threshold, so the chip never slept. Pass NULL to unbind. */
+void ble_svc_bind_downlink_tasks(void *consumer, void *writer);
 
 /* Time sync over the control characteristic, queued for the voice task (the
  * BLE callback must not touch the RTC/I2C bus):

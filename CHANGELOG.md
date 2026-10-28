@@ -13,6 +13,53 @@ English first, then 中文. Format follows [Keep a Changelog](https://keepachang
 
 # English
 
+## v1.3.0 (2026-10-28)
+
+**Idle standby went from about 12 hours to about 2.8 days.** Measured on the 450 mAh cell with the
+screen off and the phone away: **91 % light sleep, 1.4–1.7 %/h (≈6–7 mA)**.
+
+### Fixed
+
+- **Light sleep never engaged.** The audio downlink task polled every 2 ms, so no idle window ever
+  reached the 8-tick threshold and the chip never slept. Downlink is event-driven now (task
+  notification) and the writer wakes on the same channel.
+- **Power gates leaked.** An interrupted turn could leave the audio gate or the session gate taken,
+  which disabled sleep for good. Both gates are idempotent and released on every exit path, and the
+  PM lock is taken/released inside the same mutex as the gate table.
+- **Connection-parameter storm.** The turn-end branch lost its once-per-turn guard, so
+  `ble_gap_update_params` was re-issued every 30 ms and the controller answered `rc=2` (busy)
+  forever — the phone could not stay connected. Guarded by a `turn_waiting` flag.
+- **The ball page could stay black.** The app wrote the backlight itself (including 0), so
+  "restore brightness" could restore 0. The HAL owns the backlight now and `Hal::normalBrightness()`
+  returns the last level that was actually lit.
+- **A short button press was missed on a dark screen** (250 ms poll). The button is a level-triggered
+  ISR that notifies the main task.
+
+### Added
+
+- **Connect on demand.** 30 s after the screen goes dark the firmware drops the BLE link and stops
+  advertising, so the radio is completely off while idle; a tap makes the watch visible again and the
+  phone's pending `autoConnect` reconnects in about a second.
+- **Desk mode.** While USB power is present the panel never sleeps, which keeps the radio and the
+  serial console alive — flashing no longer races a sleeping device.
+- **Sleep telemetry.** The battery CSV gained `ls` (wake-ups), `slp_ms` (accumulated light sleep)
+  and `adv` / `advrc` (advertising watchdog).
+
+### Changed
+
+- BLE connects on the **slow tier** (100–150 ms, latency 4); the fast tier (30–50 ms) is requested
+  only while a turn is active.
+- CPU ceiling 240 → **160 MHz**.
+- Default brightness 80 % → **50 %**.
+- `FREERTOS_IDLE_TIME_BEFORE_SLEEP` 8 → 30 ms.
+
+### Known limitations
+
+- No 32 kHz crystal: a live connection floors at ≈3.3 mA.
+- Using the internal RC as the controller clock (`BT_CTRL_LPCLK_SEL_RTC_SLOW`) drops the link every
+  ~5 s (supervision timeout), so the option stays on `MAIN_XTAL`.
+- ~5 mA of the idle floor is still unattributed (BT main XTAL, codec, PSRAM, panel).
+
 ## v1.2.0 (2026-10-26)
 
 ### Added
@@ -126,6 +173,46 @@ First public release.
 ---
 
 # 中文
+
+## v1.3.0 (2026-10-28)
+
+**空转待机从约 12 小时提升到约 2.8 天。** 450 mAh 电池、熄屏、手机不在身边的实测：
+**91% 时间在浅睡，1.4–1.7 %/h（≈6–7 mA）**。
+
+### 修复
+
+- **浅睡从未真正生效**：音频下行任务每 2 ms 轮询一次，空闲窗口永远达不到 8 个 tick 的门槛，
+  芯片一次都没睡过。下行改为事件驱动（任务通知），写入端也从同一通道唤醒。
+- **电源门禁泄漏**：被中断的一轮对话可能把音频门禁或会话门禁永久占住，睡眠就此失效。
+  两个门禁都改为幂等，并在每条退出路径上释放；PM 锁的获取与释放放进与门禁表同一把互斥锁。
+- **连接参数风暴**：会话收尾分支丢了"一轮只做一次"的守卫，导致每 30 ms 请求一次
+  `ble_gap_update_params`，控制器永远回 `rc=2`（忙）——手机因此连不住。用 `turn_waiting`
+  标志守住。
+- **球球界面可能一直黑屏**：App 自己会写背光（包括写 0），于是"恢复亮度"可能恢复成 0。
+  现在背光只归 HAL，`Hal::normalBrightness()` 返回最后一次真正亮着的值。
+- **熄屏时短按会被漏掉**（250 ms 轮询）：按键改为电平触发中断，并唤醒主任务。
+
+### 新增
+
+- **按需连接**：熄屏 30 秒后固件主动断开 BLE 链路并停止广播，空转时射频完全关闭；
+  点亮屏幕即刻恢复可见，手机挂着的 `autoConnect` 约 1 秒内连回。
+- **桌面模式**：插着 USB 供电时面板永不熄灭，射频与串口保持存活——刷机不再跟睡眠抢窗口。
+- **睡眠遥测**：电池 CSV 增加 `ls`（唤醒次数）、`slp_ms`（累计浅睡毫秒）和
+  `adv` / `advrc`（广播看门狗）。
+
+### 变更
+
+- BLE 连接建立即走**慢档**（100–150 ms、latency 4）；快档（30–50 ms）只在对话进行中请求。
+- CPU 上限 240 → **160 MHz**。
+- 默认亮度 80% → **50%**。
+- `FREERTOS_IDLE_TIME_BEFORE_SLEEP` 8 → 30 ms。
+
+### 已知限制
+
+- 本板无 32 kHz 晶振：连接态电流地板约 3.3 mA。
+- 用内部 RC 当控制器低功耗时钟（`BT_CTRL_LPCLK_SEL_RTC_SLOW`）会每 ~5 秒断连（监督超时），
+  该选项保持 `MAIN_XTAL`。
+- 空转底噪里仍有约 5 mA 未定位（BT 主晶振、codec、PSRAM、面板）。
 
 ## v1.2.0 (2026-10-26)
 

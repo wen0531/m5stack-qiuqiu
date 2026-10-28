@@ -37,7 +37,7 @@ bool g_blink_active = false;
 uint32_t g_blink_start = 0;
 uint32_t g_next_blink = 0;
 
-constexpr uint16_t kColorBall = 0xFFFF;  // #ffffff (default ball colour)
+constexpr uint16_t kColorBall = 0xFFFF;  // #ffffff (pure white, per Wen 2026-10-20)
 
 /* Active backend identity: white = Hermes, blue = Codex, red = DSH. */
 uint16_t g_ball_color = 0xFFFF;

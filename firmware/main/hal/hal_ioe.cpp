@@ -102,7 +102,7 @@ void Hal::ioe_tp_reset()
     _ioe->digitalWrite(PY32_TP_RST_PIN, 0);
     delay(10);
     _ioe->digitalWrite(PY32_TP_RST_PIN, 1);
-    delay(50);
+    delay(120);   /* CST820 needs >= 100 ms after reset before the first I2C op */
 }
 
 void Hal::ioe_speaker_enable(bool enable)

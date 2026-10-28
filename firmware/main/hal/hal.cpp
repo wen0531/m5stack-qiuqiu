@@ -40,7 +40,9 @@ void Hal::init()
     touchpad_init();
     lvgl_init();
     audio_init();
-    imu_init();
+    /* The IMU is not read at boot any more: it is brought up lazily by
+       updateImuData(), so a watch that never uses it keeps BMI270 powered down
+       (the chip idles at ~1 mA in normal mode). */
     rtc_init();
     button_init();
     fs_init();

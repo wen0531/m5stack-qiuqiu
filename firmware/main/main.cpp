@@ -125,7 +125,9 @@ extern "C" void app_main(void)
        up: sleeping during early init corrupts the panel/PSRAM state.
        80 MHz fixed (no DFS) + automatic light sleep gated by the display
        driver. See hal/hal_power.cpp. */
-    GetHAL().powerInit(240, 80, /*light_sleep=*/true);   /* 240 MHz awake, sleep when idle */
+    GetHAL().powerInit(160, 80, /*light_sleep=*/true);   /* 160 MHz is plenty for LVGL; sleep when idle */
+    GetHAL().powerBusy("display");                        /* the panel is lit from here on */
+    GetHAL().buttonWakeTask((void*)xTaskGetCurrentTaskHandle());
 #endif
 
     xTaskCreate(heartbeat_task, "heartbeat", 3072, nullptr, 2, nullptr);
@@ -141,6 +143,10 @@ extern "C" void app_main(void)
         GetHAL().feedTheDog();
         GetHAL().screenTick();
         GetMooncake().update();
+        /* Inputs are consumed above, so run the screen state machine once more:
+           otherwise a press that just woke us would wait for the next iteration
+           (and that iteration's dark-sleep timeout) before the panel lights. */
+        GetHAL().screenTick();
         /* Without this the main task spins at 100 %; with the screen off
            there is nothing to do for a long time, so sleep longer. */
         /* Confirm a freshly-installed image only if this build actually works:
@@ -160,6 +166,12 @@ extern "C" void app_main(void)
                 esp_ota_mark_app_invalid_rollback_and_reboot();
             }
         }
-        vTaskDelay(pdMS_TO_TICKS(GetHAL().screen_off_active() ? 100 : 5));
+        if (GetHAL().screen_off_active()) {
+            /* Sleep until a button edge arrives; the timeout is only a guard
+               so housekeeping still runs while nobody touches the watch. */
+            ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(250));
+        } else {
+            vTaskDelay(pdMS_TO_TICKS(5));
+        }
     }
 }

@@ -22,6 +22,10 @@ struct Sample {
     uint16_t mv;
     uint8_t pct;
     uint8_t pad;
+    uint32_t ls;      /* cumulative light-sleep episodes >= 1 ms (see hal_power.cpp) */
+    uint32_t slp_ms;  /* cumulative time asleep since boot, ms */
+    uint32_t adv;     /* times advertising had to be restarted */
+    int32_t  advrc;   /* rc of the last ble_gap_adv_start (0 = fine) */
 };
 
 Sample* s_buf = nullptr;          // PSRAM
@@ -46,6 +50,10 @@ static void batt_log_task(void*)
         sm.uptime_s = (uint32_t)(esp_timer_get_time() / 1000000);
         sm.mv       = GetHAL().getBatteryVoltage();
         sm.pct      = GetHAL().getBatteryLevel();
+        sm.ls       = GetHAL().powerLightSleepCount();
+        sm.slp_ms   = (uint32_t)(GetHAL().powerSleepUs() / 1000ull);
+        sm.adv      = ble_svc_adv_restarts();
+        sm.advrc    = ble_svc_adv_last_rc();
         s_head      = (s_head + 1) % kCap;
         if (s_count < kCap) s_count++;
 
@@ -74,14 +82,16 @@ void batt_log_dump()
 
     /* Build the CSV newest-last so the slope reads naturally. */
     static char chunk[220];
-    const char* header = "uptime_s,vbat_mv,pct\n";
+    const char* header = "uptime_s,vbat_mv,pct,ls,slp_ms,adv,advrc\n";
     ble_svc_debug_send((const uint8_t*)header, strlen(header));
 
     int start = (s_count == kCap) ? s_head : 0;
     for (int i = 0; i < s_count; i++) {
         const Sample& sm = s_buf[(start + i) % kCap];
-        int n = snprintf(chunk, sizeof(chunk), "%lu,%u,%u\n",
-                         (unsigned long)sm.uptime_s, sm.mv, sm.pct);
+        int n = snprintf(chunk, sizeof(chunk), "%lu,%u,%u,%lu,%lu,%lu,%ld\n",
+                         (unsigned long)sm.uptime_s, sm.mv, sm.pct,
+                         (unsigned long)sm.ls, (unsigned long)sm.slp_ms,
+                         (unsigned long)sm.adv, (long)sm.advrc);
         if (n > 0) ble_svc_debug_send((const uint8_t*)chunk, (size_t)n);
         vTaskDelay(pdMS_TO_TICKS(15));   // don't overflow the debug path
     }

@@ -131,7 +131,7 @@ void AppQiuqiu::onOpen()
     _fps_count = 0;
 
     qiuqiu::init(RW, RH, BALL_RADIUS_PX * 0.5f);
-    /* Defaults: jelly preset 1 (2.1 Hz / zeta 0.16), eye roundness 3 (45%) */
+    /* Wen 2026-10-21: jelly preset 1 (2.1 Hz / zeta 0.16), eye roundness 3 (45%) */
     qiuqiu::set_tuning(13.194689f, 0.16f, 1.0f, 1.0f);
     qiuqiu::set_eye_roundness(0.45f);
 
@@ -227,14 +227,15 @@ void AppQiuqiu::onRunning()
     if (voice_state_get() == VOICE_LISTENING) {
         mark_input();
     }
+    /* The HAL owns panel power and brightness; this app only stops rendering
+       while the screen is dark. Two owners of the backlight meant a dimmed
+       screen could be "restored" to 0 and stay black. */
     bool idle = GetHAL().screen_off_active();
     if (idle && !_screen_off) {
         _screen_off = true;
-        GetHAL().setBackLightBrightness(0, false);
         mclog::tagInfo(getAppInfo().name, "screen off (idle)");
     } else if (!idle && _screen_off) {
         _screen_off = false;
-        GetHAL().setBackLightBrightness(_saved_brightness, false);
         mclog::tagInfo(getAppInfo().name, "screen on (wake)");
     }
     if (_screen_off) {
@@ -313,10 +314,7 @@ void AppQiuqiu::onClose()
 
     _key_manager.reset();
 
-    if (_screen_off) {
-        _screen_off = false;
-        GetHAL().setBackLightBrightness(_saved_brightness, false);
-    }
+    _screen_off = false;   /* brightness stays with the HAL */
 
     GetHAL().lvglLock();
     if (_hit) {

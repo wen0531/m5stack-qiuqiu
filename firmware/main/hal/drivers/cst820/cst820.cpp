@@ -52,6 +52,8 @@ bool Cst820::check_communication()
 
 bool Cst820::read()
 {
+    if (_asleep) return false;   /* parked: do not touch the bus until ping() agrees */
+
     uint8_t buf[7];  // Reading from REG_STATUS (0x00) for 7 bytes (up to 0x06 y_l)
 
     if (!read_register(REG_STATUS, buf, 7)) {
@@ -86,24 +88,37 @@ bool Cst820::read()
     return true;
 }
 
-void Cst820::sleep()
+/* Deep sleep (datasheet 0xE5 = 0x03). There is no documented register that
+   brings the chip back - only the reset pin does - so the caller must drive
+   TP_RST before reading again. Bounded I2C timeout: a wedged bus must not hang
+   the caller (this runs inside the LVGL lock). */
+bool Cst820::sleep()
 {
-    uint8_t cmd[] = {0x03};  // Enter sleep command value
-    // Original: i2c_bus_write_bytes(cst820_dev, 0xE5, 1, i2c_buf);
-    // Writes value 0x03 to register 0xE5
-
-    // In i2c_master_transmit, we send [RegAddr, Data]
     uint8_t write_buf[2] = {REG_SLEEP, 0x03};
-    i2c_master_transmit(_i2c_dev, write_buf, sizeof(write_buf), -1);
+    if (i2c_master_transmit(_i2c_dev, write_buf, sizeof(write_buf), 1000) != ESP_OK) {
+        ESP_LOGW(TAG, "sleep cmd failed");
+        _asleep = false;
+        return false;
+    }
+    _asleep = true;
+    return true;
+}
+
+/* Does the controller answer again? Used after a hardware reset. */
+bool Cst820::ping()
+{
+    if (!check_communication()) return false;   /* stays parked */
+    _asleep = false;
+    return true;
 }
 
 bool Cst820::read_register(uint8_t reg, uint8_t* data, size_t len)
 {
-    return i2c_master_transmit_receive(_i2c_dev, &reg, 1, data, len, -1) == ESP_OK;
+    return i2c_master_transmit_receive(_i2c_dev, &reg, 1, data, len, 50) == ESP_OK;   /* bounded: 50 ms */
 }
 
 bool Cst820::write_register(uint8_t reg, uint8_t data)
 {
     uint8_t write_buf[2] = {reg, data};
-    return i2c_master_transmit(_i2c_dev, write_buf, sizeof(write_buf), -1) == ESP_OK;
+    return i2c_master_transmit(_i2c_dev, write_buf, sizeof(write_buf), 50) == ESP_OK;   /* bounded: 50 ms */
 }

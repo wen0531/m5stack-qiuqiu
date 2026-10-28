@@ -5,8 +5,12 @@
 
 #include <string.h>
 
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+
 #include <esp_log.h>
 #include <esp_err.h>
+#include <esp_timer.h>
 
 #include "nimble/nimble_port.h"
 #include "nimble/nimble_port_freertos.h"
@@ -53,18 +57,94 @@ static uint16_t s_audio_handle = 0;
 static uint8_t s_dl_buf[DL_SLOTS][512];
 static volatile size_t s_dl_len[DL_SLOTS];
 static volatile uint8_t s_dl_head = 0, s_dl_tail = 0;
+static TaskHandle_t s_dl_consumer = NULL;   /* decodes packets */
+static TaskHandle_t s_dl_writer   = NULL;   /* feeds the codec */
+static portMUX_TYPE s_dl_mux      = portMUX_INITIALIZER_UNLOCKED;
+
+/* Host task produces, audio tasks consume. The spinlock is what publishes the
+   indices and payload across cores; volatile alone carries no ordering. */
+void ble_svc_bind_downlink_tasks(void *consumer, void *writer)
+{
+    taskENTER_CRITICAL(&s_dl_mux);
+    s_dl_consumer = (TaskHandle_t)consumer;
+    s_dl_writer   = (TaskHandle_t)writer;
+    taskEXIT_CRITICAL(&s_dl_mux);
+}
+
+/* Not a critical section: xTaskNotifyGive must run outside the spinlock. */
+static void dl_wake_consumers(void)
+{
+    if (s_dl_consumer) xTaskNotifyGive(s_dl_consumer);
+    if (s_dl_writer) xTaskNotifyGive(s_dl_writer);
+}
 
 bool ble_svc_take_downlink(uint8_t *pkt, size_t max_len, size_t *out_len)
 {
-    if (s_dl_tail == s_dl_head) return false;
-    size_t n = s_dl_len[s_dl_tail];
-    if (n > max_len) n = max_len;
-    memcpy(pkt, s_dl_buf[s_dl_tail], n);
-    s_dl_len[s_dl_tail] = 0;
-    s_dl_tail = (uint8_t)((s_dl_tail + 1) % DL_SLOTS);
-    if (out_len) *out_len = n;
-    return true;
+    bool got = false;
+    taskENTER_CRITICAL(&s_dl_mux);
+    if (s_dl_tail != s_dl_head) {
+        size_t n = s_dl_len[s_dl_tail];
+        if (n > max_len) n = max_len;
+        memcpy(pkt, s_dl_buf[s_dl_tail], n);
+        s_dl_len[s_dl_tail] = 0;
+        s_dl_tail           = (uint8_t)((s_dl_tail + 1) % DL_SLOTS);
+        if (out_len) *out_len = n;
+        got = true;
+    }
+    taskEXIT_CRITICAL(&s_dl_mux);
+    return got;
 }
+static void advertise(void);   /* defined below */
+
+static volatile bool     s_discoverable = true;
+static volatile uint32_t s_adv_restarts = 0;
+
+void ble_svc_set_discoverable(bool on)
+{
+    s_discoverable = on;
+    if (on) {
+        if (s_conn == BLE_HS_CONN_HANDLE_NONE && !ble_gap_adv_active()) advertise();
+    } else if (ble_gap_adv_active()) {
+        ble_gap_adv_stop();
+    }
+}
+
+void ble_svc_drop_link(void)
+{
+    if (s_conn != BLE_HS_CONN_HANDLE_NONE) {
+        ble_gap_terminate(s_conn, BLE_ERR_REM_USER_CONN_TERM);
+    }
+}
+static volatile int32_t  s_adv_last_rc  = 0;
+
+uint32_t ble_svc_adv_restarts(void)
+{
+    return s_adv_restarts;
+}
+
+int32_t ble_svc_adv_last_rc(void)
+{
+    return s_adv_last_rc;
+}
+
+/* Called from the voice loop. Only acts when the link is idle *and* the
+   controller says it is not advertising - a live connection legitimately
+   stops advertising, and that must not be "fixed". */
+void ble_svc_adv_kick(void)
+{
+    static uint32_t last_ms = 0;
+    const uint32_t now      = (uint32_t)(esp_timer_get_time() / 1000);
+    if (last_ms != 0 && (now - last_ms) < 5000) return;
+    last_ms = now;
+
+    if (!s_discoverable) return;          /* idle: stay invisible on purpose */
+    if (s_conn != BLE_HS_CONN_HANDLE_NONE) return;
+    if (ble_gap_adv_active()) return;
+
+    s_adv_restarts++;
+    advertise();
+}
+
 static uint16_t s_ctrl_handle = 0;
 static uint16_t s_status_handle = 0;
 
@@ -253,11 +333,17 @@ static int audio_access(uint16_t conn_handle, uint16_t attr_handle,
         ESP_LOGW(TAG, "audio write too long: om_len=%d", (int)OS_MBUF_PKTLEN(ctxt->om));
         return BLE_ATT_ERR_UNLIKELY;
     }
-    uint8_t next = (uint8_t)((s_dl_head + 1) % DL_SLOTS);
-    if (next == s_dl_tail) return 0; /* queue full: drop */
-    memcpy(s_dl_buf[s_dl_head], tmp, len);
-    s_dl_len[s_dl_head] = len;
-    s_dl_head = next;
+    bool queued = false;
+    taskENTER_CRITICAL(&s_dl_mux);
+    const uint8_t next = (uint8_t)((s_dl_head + 1) % DL_SLOTS);
+    if (next != s_dl_tail) {          /* else: queue full, drop */
+        memcpy(s_dl_buf[s_dl_head], tmp, len);
+        s_dl_len[s_dl_head] = len;
+        s_dl_head           = next;
+        queued              = true;
+    }
+    taskEXIT_CRITICAL(&s_dl_mux);
+    if (queued) dl_wake_consumers();
     return 0;
 }
 
@@ -334,6 +420,7 @@ static void advertise_slow(void* arg)
 
 static void advertise(void)
 {
+    if (!s_discoverable) return;          /* idle: do not become visible again */
     struct ble_hs_adv_fields fields = {0};
     fields.flags = BLE_HS_ADV_F_DISC_GEN | BLE_HS_ADV_F_BREDR_UNSUP;
     fields.uuids128 = (ble_uuid128_t *)&s_svc_uuid;
@@ -361,6 +448,7 @@ static void advertise(void)
     advp.itvl_min = s_adv_slow_mode ? 1600 : 160;   /* 1 s after 30 s, else 100 ms */
     advp.itvl_max = advp.itvl_min;
     rc = ble_gap_adv_start(s_own_addr_type, NULL, BLE_HS_FOREVER, &advp, gap_event, NULL);
+    s_adv_last_rc = rc;
     if (rc != 0 && rc != BLE_HS_EALREADY) {
         ESP_LOGE(TAG, "adv start rc=%d", rc);
     } else {
@@ -395,18 +483,12 @@ static int gap_event(struct ble_gap_event *event, void *arg)
             s_activity++;
             ESP_LOGI(TAG, "connected, conn=%u", s_conn);
             ble_att_set_preferred_mtu(400);
-            {
-                /* 30-50 ms connection interval: fewer, more reliable packets for
-                   audio downlink (16.7 packets/s fits comfortably). */
-                struct ble_gap_upd_params p = {
-                    .itvl_min = 24,
-                    .itvl_max = 40,
-                    .latency = 0,
-                    .supervision_timeout = 500,
-                };
-                int rc = ble_gap_update_params(s_conn, &p);
-                ESP_LOGI(TAG, "conn param update rc=%d", rc);
-            }
+            /* Connect on the SLOW tier. Asking for 30-50 ms here kept the radio
+               busy every 30 ms, which (with CONFIG_FREERTOS_IDLE_TIME_BEFORE_SLEEP
+               = 30 ms) meant the chip never entered light sleep while a phone was
+               connected - measured: slp_ms frozen, ~38 mA. The fast tier is
+               requested only when a turn actually starts, see voice_task.cpp. */
+            ble_svc_set_audio_mode(false);
         } else {
             ESP_LOGW(TAG, "connect failed status=%d", event->connect.status);
         }
